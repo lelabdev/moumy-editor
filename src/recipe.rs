@@ -40,6 +40,7 @@ pub struct Recipe {
 #[derive(Debug, Deserialize)]
 pub struct RecipeInput {
     pub title: String,
+    pub slug: Option<String>,
     pub category: String,
     #[serde(default)]
     pub category_label: Option<String>,

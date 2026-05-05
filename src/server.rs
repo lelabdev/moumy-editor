@@ -61,7 +61,7 @@ async fn create_recipe(
     State(state): State<Arc<AppState>>,
     Json(input): Json<RecipeInput>,
 ) -> Result<Json<Value>, (StatusCode, String)> {
-    let slug = slugify(&input.title);
+    let slug = input.slug.clone().unwrap_or_else(|| slugify(&input.title));
 
     if store::get_recipe(&state.recipes_dir, &slug).is_some() {
         return Err((

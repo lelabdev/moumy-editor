@@ -135,6 +135,18 @@
               class="text-amber-600 hover:text-amber-800 text-sm font-medium">+ Ajouter une étape</button>
           </div>
 
+          <!-- Slug (filename) -->
+          <div class="mb-6">
+            <label class="block text-sm font-medium text-stone-700 mb-1">Slug (nom du fichier)</label>
+            <div class="flex items-center gap-2">
+              <input type="text" id="form-slug-edit"
+                class="flex-1 px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono text-sm"
+                placeholder="Ex: FGo03-01 ou gateau-orange">
+              <span class="text-xs text-stone-400">.md</span>
+            </div>
+            <p class="text-xs text-stone-400 mt-1">Laissez vide pour auto-générer depuis le titre. C'est le nom du fichier sur disque.</p>
+          </div>
+
           <!-- Notes -->
           <div class="mb-6">
             <label class="block text-sm font-medium text-stone-700 mb-1">Notes</label>
@@ -194,7 +206,8 @@
 
     async function saveRecipe(e) {
       e.preventDefault();
-      const slug = document.getElementById('form-slug').value;
+      const originalSlug = document.getElementById('form-slug').value;
+      const customSlug = document.getElementById('form-slug-edit').value.trim();
       const catKey = document.getElementById('form-category').value;
       const catLabel = categories.get(catKey) || catKey.charAt(0).toUpperCase() + catKey.slice(1);
 
@@ -212,17 +225,34 @@
         steps: collectSteps(),
       };
 
-      const url = slug ? `/api/recipes/${slug}` : '/api/recipes';
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
+      // If editing and slug changed, we need to delete old + create new
+      if (originalSlug && customSlug && customSlug !== originalSlug) {
+        // Delete old, then create with new slug
+        await fetch(`/api/recipes/${originalSlug}`, { method: 'DELETE' });
+        const res = await fetch('/api/recipes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...data, slug: customSlug }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          alert('Erreur: ' + (err.error || res.statusText));
+          return;
+        }
+      } else {
+        const slug = customSlug || originalSlug;
+        const url = slug ? `/api/recipes/${slug}` : '/api/recipes';
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
 
-      if (!res.ok) {
-        const err = await res.json();
-        alert('Erreur: ' + (err.error || res.statusText));
-        return;
+        if (!res.ok) {
+          const err = await res.json();
+          alert('Erreur: ' + (err.error || res.statusText));
+          return;
+        }
       }
 
       await fetchRecipes();
@@ -381,6 +411,7 @@
     function showNewRecipe() {
       activeSlug = null;
       document.getElementById('form-slug').value = '';
+      document.getElementById('form-slug-edit').value = '';
       document.getElementById('recipe-form').reset();
       document.getElementById('ingredients-list').innerHTML = '';
       document.getElementById('steps-list').innerHTML = '';
@@ -396,6 +427,7 @@
 
       activeSlug = slug;
       document.getElementById('form-slug').value = recipe.slug;
+      document.getElementById('form-slug-edit').value = recipe.slug || '';
       document.getElementById('form-title').value = recipe.title || '';
       document.getElementById('form-category').value = recipe.category || 'desserts';
       document.getElementById('form-difficulty').value = recipe.difficulty || '';
