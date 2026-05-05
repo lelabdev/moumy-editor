@@ -7,9 +7,18 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { font-family: system-ui, -apple-system, sans-serif; }
+    .tree-toggle { cursor: pointer; user-select: none; }
+    .tree-toggle:hover { background-color: #fef3c7; }
+    .tree-children { overflow: hidden; }
+    .tree-children.collapsed { display: none; }
+    .tree-recipe:hover { background-color: #fef3c7; }
+    .tree-recipe.active { background-color: #fde68a; }
+    .chevron { transition: transform 0.15s; display: inline-block; }
+    .chevron.collapsed { transform: rotate(-90deg); }
     .step-input { counter-increment: step; }
     .step-input::before { content: counter(step) ". "; font-weight: 600; color: #8B6F5C; }
     .step-list { counter-reset: step; }
+    .category-tag { font-size: 0.7rem; padding: 2px 8px; border-radius: 9999px; }
   </style>
 </head>
 <body class="bg-stone-50 min-h-screen">
@@ -25,13 +34,13 @@
   <!-- Main layout -->
   <div class="flex h-[calc(100vh-65px)]">
 
-    <!-- Sidebar: recipe list -->
-    <aside id="sidebar" class="w-80 bg-white border-r border-stone-200 overflow-y-auto">
+    <!-- Sidebar: tree view by category -->
+    <aside id="sidebar" class="w-80 bg-white border-r border-stone-200 flex flex-col">
       <div class="p-4">
         <input type="text" id="search" placeholder="Rechercher..." oninput="filterRecipes()"
           class="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
       </div>
-      <div id="recipe-list" class="divide-y divide-stone-100"></div>
+      <div id="recipe-tree" class="flex-1 overflow-y-auto"></div>
     </aside>
 
     <!-- Main content: form -->
@@ -54,15 +63,23 @@
           <div class="grid grid-cols-2 gap-4 mb-6">
             <div>
               <label class="block text-sm font-medium text-stone-700 mb-1">Catégorie *</label>
-              <select id="form-category" required
-                class="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500">
-                <option value="desserts">Desserts</option>
-                <option value="plats">Plats</option>
-                <option value="entrees">Entrées</option>
-                <option value="accompagnements">Accompagnements</option>
-                <option value="boissons">Boissons</option>
-                <option value="autres">Autres</option>
-              </select>
+              <div class="flex gap-2">
+                <select id="form-category" required onchange="onCategorySelect()"
+                  class="flex-1 px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500">
+                </select>
+                <button type="button" onclick="showAddCategory()" title="Nouvelle catégorie"
+                  class="px-3 py-2 text-amber-600 hover:bg-amber-50 rounded-lg border border-stone-300 text-lg font-bold">+</button>
+              </div>
+              <div id="new-category-row" class="hidden mt-2 flex gap-2">
+                <input type="text" id="form-new-category" placeholder="Nom de la catégorie"
+                  class="flex-1 px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                <input type="text" id="form-new-category-label" placeholder="Label affiché"
+                  class="flex-1 px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                <button type="button" onclick="confirmNewCategory()"
+                  class="px-3 py-2 bg-amber-600 text-white rounded-lg text-sm">OK</button>
+                <button type="button" onclick="hideAddCategory()"
+                  class="px-3 py-2 text-stone-400 hover:text-stone-600 text-sm">✕</button>
+              </div>
             </div>
             <div>
               <label class="block text-sm font-medium text-stone-700 mb-1">Difficulté</label>
@@ -146,13 +163,27 @@
 
   <script>
     let allRecipes = [];
+    let activeSlug = null;
+    let categories = new Map(); // key -> label
 
     // --- API ---
     async function fetchRecipes() {
       const res = await fetch('/api/recipes');
       const data = await res.json();
       allRecipes = data.recipes || [];
-      renderList();
+
+      // Build categories map from existing recipes
+      categories.clear();
+      allRecipes.forEach(r => {
+        if (r.category && r.categoryLabel) {
+          categories.set(r.category, r.categoryLabel);
+        } else if (r.category) {
+          const label = r.category.charAt(0).toUpperCase() + r.category.slice(1);
+          categories.set(r.category, label);
+        }
+      });
+
+      renderTree();
     }
 
     async function fetchRecipe(slug) {
@@ -164,10 +195,13 @@
     async function saveRecipe(e) {
       e.preventDefault();
       const slug = document.getElementById('form-slug').value;
+      const catKey = document.getElementById('form-category').value;
+      const catLabel = categories.get(catKey) || catKey.charAt(0).toUpperCase() + catKey.slice(1);
+
       const data = {
         title: document.getElementById('form-title').value,
-        category: document.getElementById('form-category').value,
-        category_label: document.getElementById('form-category').selectedOptions[0].textContent,
+        category: catKey,
+        category_label: catLabel,
         excerpt: document.getElementById('form-excerpt').value || null,
         prep_time: intVal('form-prepTime'),
         cook_time: intVal('form-cookTime'),
@@ -179,10 +213,8 @@
       };
 
       const url = slug ? `/api/recipes/${slug}` : '/api/recipes';
-      const method = slug ? 'POST' : 'POST';
-
       const res = await fetch(url, {
-        method,
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
@@ -209,39 +241,160 @@
       }
     }
 
-    // --- UI ---
-    function renderList() {
+    // --- Tree view ---
+    function renderTree() {
       const search = document.getElementById('search').value.toLowerCase();
       const filtered = allRecipes.filter(r =>
         r.title.toLowerCase().includes(search) ||
-        r.category.toLowerCase().includes(search)
+        (r.categoryLabel || r.category).toLowerCase().includes(search)
       );
 
-      const container = document.getElementById('recipe-list');
-      container.innerHTML = filtered.map(r => `
-        <button onclick="editRecipe('${r.slug}')"
-          class="w-full text-left px-4 py-3 hover:bg-amber-50 transition-colors">
-          <div class="font-medium text-stone-800">${esc(r.title)}</div>
-          <div class="text-xs text-stone-500 mt-0.5">${esc(r.categoryLabel || r.category)}${r.difficulty ? ' · ' + esc(r.difficulty) : ''}</div>
-        </button>
-      `).join('');
+      // Group by category
+      const grouped = new Map();
+      filtered.forEach(r => {
+        const cat = r.categoryLabel || r.category || 'Autres';
+        if (!grouped.has(cat)) grouped.set(cat, []);
+        grouped.get(cat).push(r);
+      });
+
+      // Sort categories alphabetically, recipes by title
+      const sortedCats = [...grouped.keys()].sort((a, b) => a.localeCompare(b, 'fr'));
+      sortedCats.forEach(cat => {
+        grouped.get(cat).sort((a, b) => a.title.localeCompare(b.title, 'fr'));
+      });
+
+      const container = document.getElementById('recipe-tree');
+      const total = allRecipes.length;
+
+      let html = `
+        <div class="tree-toggle flex items-center justify-between px-4 py-2 border-b border-stone-100" onclick="toggleTreeAll()">
+          <span class="text-xs font-medium text-stone-500 uppercase tracking-wider">Toutes les recettes</span>
+          <span class="text-xs text-stone-400">${total}</span>
+        </div>
+      `;
+
+      sortedCats.forEach((cat, idx) => {
+        const recipes = grouped.get(cat);
+        const catKey = recipes[0]?.category || 'autres';
+        const catId = `cat-${catKey.replace(/[^a-z0-9]/gi, '-')}`;
+        const isActive = recipes.some(r => r.slug === activeSlug);
+
+        html += `
+          <div>
+            <div class="tree-toggle flex items-center justify-between px-4 py-2 border-b border-stone-50"
+                 onclick="toggleTree('${catId}')">
+              <div class="flex items-center gap-2">
+                <span class="chevron" id="chevron-${catId}">▼</span>
+                <span class="text-sm font-medium text-stone-700">${esc(cat)}</span>
+              </div>
+              <span class="text-xs text-stone-400">${recipes.length}</span>
+            </div>
+            <div class="tree-children" id="children-${catId}">
+              ${recipes.map(r => `
+                <button onclick="editRecipe('${r.slug}')"
+                  class="tree-recipe w-full text-left pl-10 pr-4 py-2 border-b border-stone-50 transition-colors ${r.slug === activeSlug ? 'active' : ''}">
+                  <div class="text-sm text-stone-800">${esc(r.title)}</div>
+                  ${r.difficulty ? `<span class="text-xs text-stone-400">${esc(r.difficulty)}</span>` : ''}
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+      updateCategoryDropdown();
     }
 
-    function filterRecipes() { renderList(); }
+    function toggleTree(catId) {
+      const children = document.getElementById(`children-${catId}`);
+      const chevron = document.getElementById(`chevron-${catId}`);
+      if (children && chevron) {
+        children.classList.toggle('collapsed');
+        chevron.classList.toggle('collapsed');
+      }
+    }
 
+    function toggleTreeAll() {
+      const allChildren = document.querySelectorAll('.tree-children');
+      const allChevrons = document.querySelectorAll('.chevron');
+      const allCollapsed = [...allChildren].every(c => c.classList.contains('collapsed'));
+
+      allChildren.forEach(c => c.classList.toggle('collapsed', !allCollapsed));
+      allChevrons.forEach(c => c.classList.toggle('collapsed', !allCollapsed));
+    }
+
+    function filterRecipes() { renderTree(); }
+
+    // --- Category dropdown ---
+    function updateCategoryDropdown() {
+      const select = document.getElementById('form-category');
+      const currentVal = select.value;
+      select.innerHTML = '';
+
+      // Add existing categories
+      const sorted = [...categories.entries()].sort((a, b) => a[1].localeCompare(b[1], 'fr'));
+      sorted.forEach(([key, label]) => {
+        const opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = label;
+        select.appendChild(opt);
+      });
+
+      // Restore selection
+      if (currentVal && [...categories.keys()].includes(currentVal)) {
+        select.value = currentVal;
+      }
+    }
+
+    function onCategorySelect() {
+      // Just update — the dropdown is already populated
+    }
+
+    function showAddCategory() {
+      document.getElementById('new-category-row').classList.remove('hidden');
+      document.getElementById('form-new-category').focus();
+    }
+
+    function hideAddCategory() {
+      document.getElementById('new-category-row').classList.add('hidden');
+      document.getElementById('form-new-category').value = '';
+      document.getElementById('form-new-category-label').value = '';
+    }
+
+    function confirmNewCategory() {
+      const key = document.getElementById('form-new-category').value.trim().toLowerCase()
+        .replace(/[^a-z0-9àâäéèêëîïôöùûüç\s-]/gi, '')
+        .replace(/\s+/g, '-');
+      const label = document.getElementById('form-new-category-label').value.trim()
+        || key.charAt(0).toUpperCase() + key.slice(1);
+
+      if (!key) return;
+
+      categories.set(key, label);
+      updateCategoryDropdown();
+      document.getElementById('form-category').value = key;
+      hideAddCategory();
+    }
+
+    // --- Form ---
     function showNewRecipe() {
+      activeSlug = null;
       document.getElementById('form-slug').value = '';
       document.getElementById('recipe-form').reset();
       document.getElementById('ingredients-list').innerHTML = '';
       document.getElementById('steps-list').innerHTML = '';
       document.getElementById('delete-btn').classList.add('hidden');
+      hideAddCategory();
       showForm();
+      renderTree(); // refresh active state
     }
 
     async function editRecipe(slug) {
       const recipe = await fetchRecipe(slug);
       if (!recipe) return;
 
+      activeSlug = slug;
       document.getElementById('form-slug').value = recipe.slug;
       document.getElementById('form-title').value = recipe.title || '';
       document.getElementById('form-category').value = recipe.category || 'desserts';
@@ -263,7 +416,9 @@
       (recipe.steps || []).forEach(step => addStep(step));
 
       document.getElementById('delete-btn').classList.remove('hidden');
+      hideAddCategory();
       showForm();
+      renderTree(); // refresh active state
     }
 
     function showForm() {
@@ -272,8 +427,10 @@
     }
 
     function cancelEdit() {
+      activeSlug = null;
       document.getElementById('empty-state').classList.remove('hidden');
       document.getElementById('form-container').classList.add('hidden');
+      renderTree();
     }
 
     // --- Dynamic lists ---
