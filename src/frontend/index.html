@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Moumy — Éditeur de recettes</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; }
+    .step-input { counter-increment: step; }
+    .step-input::before { content: counter(step) ". "; font-weight: 600; color: #8B6F5C; }
+    .step-list { counter-reset: step; }
+  </style>
+</head>
+<body class="bg-stone-50 min-h-screen">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-stone-200 px-6 py-4 flex items-center justify-between">
+    <h1 class="text-xl font-bold text-stone-800">📝 Moumy — Recettes</h1>
+    <button onclick="showNewRecipe()" class="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
+      + Nouvelle recette
+    </button>
+  </header>
+
+  <!-- Main layout -->
+  <div class="flex h-[calc(100vh-65px)]">
+
+    <!-- Sidebar: recipe list -->
+    <aside id="sidebar" class="w-80 bg-white border-r border-stone-200 overflow-y-auto">
+      <div class="p-4">
+        <input type="text" id="search" placeholder="Rechercher..." oninput="filterRecipes()"
+          class="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+      </div>
+      <div id="recipe-list" class="divide-y divide-stone-100"></div>
+    </aside>
+
+    <!-- Main content: form -->
+    <main id="main" class="flex-1 overflow-y-auto">
+      <div id="empty-state" class="flex items-center justify-center h-full text-stone-400">
+        <p>Sélectionnez ou créez une recette</p>
+      </div>
+      <div id="form-container" class="hidden max-w-2xl mx-auto p-8">
+        <form id="recipe-form" onsubmit="saveRecipe(event)">
+          <input type="hidden" id="form-slug">
+
+          <!-- Title -->
+          <div class="mb-6">
+            <label class="block text-sm font-medium text-stone-700 mb-1">Titre *</label>
+            <input type="text" id="form-title" required
+              class="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500">
+          </div>
+
+          <!-- Category + Difficulty row -->
+          <div class="grid grid-cols-2 gap-4 mb-6">
+            <div>
+              <label class="block text-sm font-medium text-stone-700 mb-1">Catégorie *</label>
+              <select id="form-category" required
+                class="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500">
+                <option value="desserts">Desserts</option>
+                <option value="plats">Plats</option>
+                <option value="entrees">Entrées</option>
+                <option value="accompagnements">Accompagnements</option>
+                <option value="boissons">Boissons</option>
+                <option value="autres">Autres</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-stone-700 mb-1">Difficulté</label>
+              <select id="form-difficulty"
+                class="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500">
+                <option value="">—</option>
+                <option value="Facile">Facile</option>
+                <option value="Moyen">Moyen</option>
+                <option value="Difficile">Difficile</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Times + Servings row -->
+          <div class="grid grid-cols-3 gap-4 mb-6">
+            <div>
+              <label class="block text-sm font-medium text-stone-700 mb-1">Préparation (min)</label>
+              <input type="number" id="form-prepTime" min="0"
+                class="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-stone-700 mb-1">Cuisson (min)</label>
+              <input type="number" id="form-cookTime" min="0"
+                class="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-stone-700 mb-1">Portions</label>
+              <input type="number" id="form-servings" min="0"
+                class="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500">
+            </div>
+          </div>
+
+          <!-- Excerpt -->
+          <div class="mb-6">
+            <label class="block text-sm font-medium text-stone-700 mb-1">Résumé</label>
+            <textarea id="form-excerpt" rows="2"
+              class="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"></textarea>
+          </div>
+
+          <!-- Ingredients -->
+          <div class="mb-6">
+            <label class="block text-sm font-medium text-stone-700 mb-1">Ingrédients</label>
+            <div id="ingredients-list" class="space-y-2 mb-2"></div>
+            <button type="button" onclick="addIngredient()"
+              class="text-amber-600 hover:text-amber-800 text-sm font-medium">+ Ajouter un ingrédient</button>
+          </div>
+
+          <!-- Steps -->
+          <div class="mb-6">
+            <label class="block text-sm font-medium text-stone-700 mb-1">Étapes</label>
+            <div id="steps-list" class="step-list space-y-2 mb-2"></div>
+            <button type="button" onclick="addStep()"
+              class="text-amber-600 hover:text-amber-800 text-sm font-medium">+ Ajouter une étape</button>
+          </div>
+
+          <!-- Notes -->
+          <div class="mb-6">
+            <label class="block text-sm font-medium text-stone-700 mb-1">Notes</label>
+            <textarea id="form-notes" rows="2"
+              class="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"></textarea>
+          </div>
+
+          <!-- Actions -->
+          <div class="flex items-center gap-4 pt-4 border-t border-stone-200">
+            <button type="submit"
+              class="bg-amber-600 hover:bg-amber-700 text-white px-6 py-2 rounded-lg font-medium">
+              💾 Sauvegarder
+            </button>
+            <button type="button" onclick="cancelEdit()"
+              class="text-stone-500 hover:text-stone-700 px-4 py-2">
+              Annuler
+            </button>
+            <button type="button" id="delete-btn" onclick="deleteRecipe()" class="hidden ml-auto text-red-500 hover:text-red-700 px-4 py-2 text-sm">
+              🗑 Supprimer
+            </button>
+          </div>
+        </form>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    let allRecipes = [];
+
+    // --- API ---
+    async function fetchRecipes() {
+      const res = await fetch('/api/recipes');
+      const data = await res.json();
+      allRecipes = data.recipes || [];
+      renderList();
+    }
+
+    async function fetchRecipe(slug) {
+      const res = await fetch(`/api/recipes/${slug}`);
+      if (!res.ok) return null;
+      return res.json();
+    }
+
+    async function saveRecipe(e) {
+      e.preventDefault();
+      const slug = document.getElementById('form-slug').value;
+      const data = {
+        title: document.getElementById('form-title').value,
+        category: document.getElementById('form-category').value,
+        category_label: document.getElementById('form-category').selectedOptions[0].textContent,
+        excerpt: document.getElementById('form-excerpt').value || null,
+        prep_time: intVal('form-prepTime'),
+        cook_time: intVal('form-cookTime'),
+        servings: intVal('form-servings'),
+        difficulty: document.getElementById('form-difficulty').value || null,
+        ingredients: collectIngredients(),
+        notes: document.getElementById('form-notes').value || null,
+        steps: collectSteps(),
+      };
+
+      const url = slug ? `/api/recipes/${slug}` : '/api/recipes';
+      const method = slug ? 'POST' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        alert('Erreur: ' + (err.error || res.statusText));
+        return;
+      }
+
+      await fetchRecipes();
+      cancelEdit();
+    }
+
+    async function deleteRecipe() {
+      const slug = document.getElementById('form-slug').value;
+      if (!slug) return;
+      if (!confirm('Supprimer cette recette ?')) return;
+
+      const res = await fetch(`/api/recipes/${slug}`, { method: 'DELETE' });
+      if (res.ok) {
+        await fetchRecipes();
+        cancelEdit();
+      }
+    }
+
+    // --- UI ---
+    function renderList() {
+      const search = document.getElementById('search').value.toLowerCase();
+      const filtered = allRecipes.filter(r =>
+        r.title.toLowerCase().includes(search) ||
+        r.category.toLowerCase().includes(search)
+      );
+
+      const container = document.getElementById('recipe-list');
+      container.innerHTML = filtered.map(r => `
+        <button onclick="editRecipe('${r.slug}')"
+          class="w-full text-left px-4 py-3 hover:bg-amber-50 transition-colors">
+          <div class="font-medium text-stone-800">${esc(r.title)}</div>
+          <div class="text-xs text-stone-500 mt-0.5">${esc(r.categoryLabel || r.category)}${r.difficulty ? ' · ' + esc(r.difficulty) : ''}</div>
+        </button>
+      `).join('');
+    }
+
+    function filterRecipes() { renderList(); }
+
+    function showNewRecipe() {
+      document.getElementById('form-slug').value = '';
+      document.getElementById('recipe-form').reset();
+      document.getElementById('ingredients-list').innerHTML = '';
+      document.getElementById('steps-list').innerHTML = '';
+      document.getElementById('delete-btn').classList.add('hidden');
+      showForm();
+    }
+
+    async function editRecipe(slug) {
+      const recipe = await fetchRecipe(slug);
+      if (!recipe) return;
+
+      document.getElementById('form-slug').value = recipe.slug;
+      document.getElementById('form-title').value = recipe.title || '';
+      document.getElementById('form-category').value = recipe.category || 'desserts';
+      document.getElementById('form-difficulty').value = recipe.difficulty || '';
+      document.getElementById('form-prepTime').value = recipe.prepTime || '';
+      document.getElementById('form-cookTime').value = recipe.cookTime || '';
+      document.getElementById('form-servings').value = recipe.servings || '';
+      document.getElementById('form-excerpt').value = recipe.excerpt || '';
+      document.getElementById('form-notes').value = recipe.notes || '';
+
+      // Ingredients
+      const ingList = document.getElementById('ingredients-list');
+      ingList.innerHTML = '';
+      (recipe.ingredients || []).forEach(ing => addIngredient(ing));
+
+      // Steps
+      const stepList = document.getElementById('steps-list');
+      stepList.innerHTML = '';
+      (recipe.steps || []).forEach(step => addStep(step));
+
+      document.getElementById('delete-btn').classList.remove('hidden');
+      showForm();
+    }
+
+    function showForm() {
+      document.getElementById('empty-state').classList.add('hidden');
+      document.getElementById('form-container').classList.remove('hidden');
+    }
+
+    function cancelEdit() {
+      document.getElementById('empty-state').classList.remove('hidden');
+      document.getElementById('form-container').classList.add('hidden');
+    }
+
+    // --- Dynamic lists ---
+    function addIngredient(value = '') {
+      const div = document.createElement('div');
+      div.className = 'flex gap-2';
+      div.innerHTML = `
+        <input type="text" value="${esc(value)}" placeholder="200g de farine"
+          class="flex-1 px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+        <button type="button" onclick="this.parentElement.remove()"
+          class="text-stone-400 hover:text-red-500 px-2">✕</button>
+      `;
+      document.getElementById('ingredients-list').appendChild(div);
+    }
+
+    function addStep(value = '') {
+      const div = document.createElement('div');
+      div.className = 'step-input flex gap-2';
+      div.innerHTML = `
+        <input type="text" value="${esc(value)}" placeholder="Mélanger le tout..."
+          class="flex-1 px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+        <button type="button" onclick="this.parentElement.remove()"
+          class="text-stone-400 hover:text-red-500 px-2">✕</button>
+      `;
+      document.getElementById('steps-list').appendChild(div);
+    }
+
+    function collectIngredients() {
+      return [...document.querySelectorAll('#ingredients-list input')].map(i => i.value).filter(v => v.trim());
+    }
+
+    function collectSteps() {
+      return [...document.querySelectorAll('#steps-list input')].map(i => i.value).filter(v => v.trim());
+    }
+
+    // --- Helpers ---
+    function intVal(id) {
+      const v = document.getElementById(id).value;
+      return v ? parseInt(v) : null;
+    }
+
+    function esc(s) {
+      if (!s) return '';
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    // --- Init ---
+    fetchRecipes();
+  </script>
+</body>
+</html>
