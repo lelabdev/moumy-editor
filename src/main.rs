@@ -1,6 +1,7 @@
 mod recipe;
 mod server;
 mod store;
+mod updater;
 
 use std::env;
 use std::path::PathBuf;
@@ -44,6 +45,13 @@ fn which_bun() -> Option<std::path::PathBuf> {
 
 #[tokio::main]
 async fn main() {
+    // Auto-update check (before anything else)
+    if let Some(msg) = updater::check_and_update().await {
+        println!("✨ {}", msg);
+        // If we got here, the update was staged but we're still running the old version
+        // The new version will apply on restart
+    }
+
     let dir = env::current_dir().expect("Cannot get current directory");
     let cwd = dir.clone();
 
