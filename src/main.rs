@@ -45,6 +45,7 @@ fn which_bun() -> Option<std::path::PathBuf> {
 #[tokio::main]
 async fn main() {
     let dir = env::current_dir().expect("Cannot get current directory");
+    let cwd = dir.clone();
 
     // Try: RECIPES_DIR env > ./src/data/recettes/ > current dir
     let recipes_dir = if let Ok(custom) = env::var("RECIPES_DIR") {
@@ -106,7 +107,34 @@ async fn main() {
         None
     };
 
-    let mistral_api_key = env::var("MISTRAL_API_KEY").ok();
+    let mistral_api_key = env::var("MISTRAL_API_KEY")
+        .ok()
+        .or_else(|| {
+            // Try .env file in: project root, current dir, binary dir
+            let search_dirs = vec![
+                recipes_dir.parent().and_then(|p| p.parent()).map(|p| p.to_path_buf()),
+                Some(cwd.clone()),
+                std::env::current_exe().ok().and_then(|e| e.parent().map(|p| p.to_path_buf())),
+            ];
+            for base in search_dirs.into_iter().flatten() {
+                let env_path = base.join(".env");
+                if env_path.exists() {
+                    if let Ok(content) = std::fs::read_to_string(&env_path) {
+                        for line in content.lines() {
+                            let line = line.trim();
+                            if let Some(val) = line.strip_prefix("MISTRAL_API_KEY=") {
+                                let val = val.trim().trim_matches('"').trim_matches('\'');
+                                if !val.is_empty() {
+                                    return Some(val.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            None
+        });
+
     if mistral_api_key.is_some() {
         println!("🔍 Mistral OCR enabled");
     } else {
