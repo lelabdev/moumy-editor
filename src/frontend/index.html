@@ -180,12 +180,19 @@
                 <div id="manuscript-placeholder" class="aspect-[3/4] bg-stone-100 rounded-xl border-2 border-dashed border-stone-300 flex items-center justify-center">
                   <span class="text-stone-400 text-sm">Pas d'image</span>
                 </div>
-                <img id="manuscript-img" class="hidden w-full rounded-xl shadow-lg" alt="Manuscrit" />
+                <img id="manuscript-img" class="hidden w-full rounded-xl shadow-lg cursor-pointer" alt="Manuscrit" />
+                <!-- Image group thumbnails (shown when multiple images match) -->
+                <div id="image-group" class="hidden mt-3 flex gap-2 flex-wrap"></div>
               </div>
               <!-- OCR panel -->
               <div id="ocr-panel" class="hidden">
-                <button id="ocr-btn" onclick="runOcr()" class="hidden w-full bg-stone-100 hover:bg-amber-50 border border-stone-200 text-stone-600 hover:text-amber-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-                  🔍 Lancer la transcription
+                <!-- OCR image selection -->
+                <div id="ocr-images" class="hidden mb-3">
+                  <p class="text-xs text-stone-500 font-medium uppercase mb-2">Images pour OCR</p>
+                  <div id="ocr-variants" class="flex gap-2 flex-wrap"></div>
+                </div>
+                <button id="ocr-btn" onclick="runOcr()" class="hidden w-full bg-amber-500 hover:bg-amber-600 text-white px-6 py-3 rounded-lg font-medium text-base transition-colors">
+                  🔍 Transcription
                 </button>
                 <div id="ocr-result" class="hidden mt-3">
                   <div class="flex items-center justify-between mb-1">
@@ -657,6 +664,7 @@
 
       // Manuscript image
       loadManuscriptImage(recipe.slug);
+      loadImageGroup(recipe.slug);
 
       // Steps
       const stepList = document.getElementById('steps-list');
@@ -679,6 +687,9 @@
 
     function cancelEdit() {
       activeSlug = null;
+      imageGroup = [];
+      ocrSelectedSlug = null;
+      document.getElementById('image-group').classList.add('hidden');
       document.getElementById('empty-state').classList.remove('hidden');
       document.getElementById('form-container').classList.add('hidden');
       renderTree();
@@ -832,7 +843,8 @@
     }
 
     async function runOcr() {
-      const slug = document.getElementById('form-slug').value || document.getElementById('form-slug-edit').value;
+      // Use OCR-selected image, fallback to current slug
+      const slug = ocrSelectedSlug || document.getElementById('form-slug').value || document.getElementById('form-slug-edit').value;
       if (!slug) return;
 
       const btn = document.getElementById('ocr-btn');
@@ -875,6 +887,8 @@
 
     // --- Orphan images ---
     let orphanImages = [];
+    let imageGroup = []; // variants for current recipe
+    let ocrSelectedSlug = null; // which variant is selected for OCR
 
     async function fetchOrphanImages() {
       try {
@@ -923,10 +937,80 @@
       `;
     }
 
-    function newRecipeFromImage(slug) {
+    async function newRecipeFromImage(slug) {
       showNewRecipe();
       document.getElementById('form-slug-edit').value = slug;
       loadManuscriptImage(slug);
+      await loadImageGroup(slug);
+    }
+
+    async function loadImageGroup(slug) {
+      try {
+        const res = await fetch(`/api/images-group/${slug}`);
+        const data = await res.json();
+        imageGroup = data.images || [];
+      } catch (e) {
+        imageGroup = [];
+      }
+
+      // Show image group in left panel
+      const groupEl = document.getElementById('image-group');
+      if (imageGroup.length > 1) {
+        const currentSlug = document.getElementById('form-slug-edit').value;
+        groupEl.innerHTML = imageGroup.map(s => `
+          <img src="/api/images/${esc(s)}" onclick="selectSlug('${esc(s)}')"
+            class="h-16 w-12 object-cover rounded cursor-pointer border-2 transition-all ${s === currentSlug ? 'border-amber-500 ring-1 ring-amber-500' : 'border-stone-200 opacity-60 hover:opacity-100'}"
+            title="${esc(s)}" />
+        `).join('');
+        groupEl.classList.remove('hidden');
+      } else {
+        groupEl.innerHTML = '';
+        groupEl.classList.add('hidden');
+      }
+
+      // Setup OCR variants
+      renderOcrVariants();
+    }
+
+    function selectSlug(slug) {
+      document.getElementById('form-slug-edit').value = slug;
+      loadManuscriptImage(slug);
+      // Re-render thumbnails to update selection
+      loadImageGroup(slug);
+      checkDirty();
+    }
+
+    function renderOcrVariants() {
+      const container = document.getElementById('ocr-variants');
+      const section = document.getElementById('ocr-images');
+      const btn = document.getElementById('ocr-btn');
+
+      if (imageGroup.length > 1) {
+        const currentSlug = document.getElementById('form-slug-edit').value;
+        // Default OCR selection = current slug
+        if (!ocrSelectedSlug || !imageGroup.includes(ocrSelectedSlug)) {
+          ocrSelectedSlug = currentSlug;
+        }
+        container.innerHTML = imageGroup.map(s => `
+          <img src="/api/images/${esc(s)}" onclick="selectOcrImage('${esc(s)}')"
+            class="h-20 w-16 object-cover rounded cursor-pointer border-2 transition-all ${s === ocrSelectedSlug ? 'border-amber-500 ring-2 ring-amber-400' : 'border-stone-200 opacity-60 hover:opacity-100'}"
+            title="${esc(s)}" />
+        `).join('');
+        section.classList.remove('hidden');
+        if (ocrAvailable) btn.classList.remove('hidden');
+      } else if (imageGroup.length === 1) {
+        ocrSelectedSlug = imageGroup[0];
+        section.classList.add('hidden');
+        if (ocrAvailable) btn.classList.remove('hidden');
+      } else {
+        section.classList.add('hidden');
+        btn.classList.add('hidden');
+      }
+    }
+
+    function selectOcrImage(slug) {
+      ocrSelectedSlug = slug;
+      renderOcrVariants();
     }
 
     // --- Tabs ---

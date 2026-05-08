@@ -35,6 +35,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/recipes/{slug}", post(update_recipe))
         .route("/api/recipes/{slug}", delete(delete_recipe))
         .route("/api/images/{slug}", get(get_image))
+        .route("/api/images-group/{slug}", get(list_images_group))
         .route("/api/orphan-images", get(list_orphan_images))
         .route("/api/site-url", get(get_site_url))
         .route("/api/ocr/{slug}", post(ocr_image))
@@ -153,6 +154,31 @@ async fn get_image(
         }
     }
     Err(StatusCode::NOT_FOUND)
+}
+
+/// List all images matching a base slug (e.g. "EdM-Abri01" matches EdM-Abri01.jpg, EdM-Abri01_A.jpg, ...)
+async fn list_images_group(
+    State(state): State<Arc<AppState>>,
+    Path(slug): Path<String>,
+) -> Json<Value> {
+    let img_dir = state.img_dir();
+    let base_slug = slug.split('_').next().unwrap_or(&slug).to_lowercase();
+
+    let mut matching: Vec<String> = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(&img_dir) {
+        for entry in entries.flatten() {
+            if let Some(name) = entry.file_name().to_str() {
+                let stem = name.rsplit_once('.').map(|(s, _)| s).unwrap_or(name);
+                let stem_base = stem.split('_').next().unwrap_or(stem);
+                if stem_base.to_lowercase() == base_slug {
+                    matching.push(stem.to_string());
+                }
+            }
+        }
+    }
+
+    matching.sort();
+    Json(json!({ "images": matching }))
 }
 
 async fn list_orphan_images(State(state): State<Arc<AppState>>) -> Json<Value> {
