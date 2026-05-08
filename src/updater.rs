@@ -1,7 +1,7 @@
 use std::env;
 use std::path::PathBuf;
 
-const VERSION: &str = "1.0.4";
+const VERSION: &str = "1.1.0";
 const REPO: &str = "lelabdev/moumy-editor";
 
 pub fn current_version() -> String {
@@ -189,6 +189,16 @@ async fn fetch_latest_release() -> Option<Release> {
         .collect();
 
     Some(Release { version, assets })
+}
+
+/// Check if a newer version is available (without downloading)
+pub async fn check_latest() -> Option<String> {
+    let latest = fetch_latest_release().await?;
+    if is_newer(&latest.version, VERSION) {
+        Some(latest.version)
+    } else {
+        None
+    }
 }
 
 /// Compare semver-like versions: "0.9.1" > "0.9.0"

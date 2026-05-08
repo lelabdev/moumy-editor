@@ -38,6 +38,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/images-group/{slug}", get(list_images_group))
         .route("/api/orphan-images", get(list_orphan_images))
         .route("/api/site-url", get(get_site_url))
+        .route("/api/update-check", get(check_update))
         .route("/api/ocr/{slug}", post(ocr_image))
         .route("/api/ocr-status", get(ocr_status))
         .route("/api/git-status", get(git_status))
@@ -226,6 +227,14 @@ async fn get_site_url(State(state): State<Arc<AppState>>) -> Json<Value> {
     Json(json!({
         "siteUrl": state.site_url,
     }))
+}
+
+async fn check_update() -> Json<Value> {
+    let current = crate::updater::current_version();
+    match crate::updater::check_latest().await {
+        Some(latest) => Json(json!({ "current": current, "latest": latest, "updateAvailable": true })),
+        None => Json(json!({ "current": current, "latest": current, "updateAvailable": false })),
+    }
 }
 
 async fn git_status() -> Json<Value> {
