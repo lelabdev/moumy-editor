@@ -73,6 +73,7 @@ pub fn serialize_recipe(input: &RecipeInput, slug: &str) -> String {
         servings: input.servings,
         difficulty: input.difficulty.clone(),
         ingredients: input.ingredients.clone(),
+        ingredients2: input.ingredients2.clone(),
         notes: input.notes.clone(),
     };
 

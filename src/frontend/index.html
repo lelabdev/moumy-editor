@@ -127,6 +127,15 @@
               class="text-amber-600 hover:text-amber-800 text-sm font-medium">+ Ajouter un ingrédient</button>
           </div>
 
+          <!-- Ingredients 2 (optional second list) -->
+          <div class="mb-6">
+            <label class="block text-sm font-medium text-stone-700 mb-1">Ingrédients (2ème liste) <span class="text-stone-400 font-normal">— optionnel</span></label>
+            <p class="text-xs text-stone-400 mb-2">Le 1er item sera le titre de section (ex: "Pour la pâte"). Laissez vide si la recette n'a qu'une seule liste.</p>
+            <div id="ingredients2-list" class="space-y-2 mb-2"></div>
+            <button type="button" onclick="addIngredient2()"
+              class="text-amber-600 hover:text-amber-800 text-sm font-medium">+ Ajouter un ingrédient</button>
+          </div>
+
           <!-- Steps -->
           <div class="mb-6">
             <label class="block text-sm font-medium text-stone-700 mb-1">Étapes</label>
@@ -221,6 +230,7 @@
         servings: intVal('form-servings'),
         difficulty: document.getElementById('form-difficulty').value || null,
         ingredients: collectIngredients(),
+        ingredients2: collectIngredients2(),
         notes: document.getElementById('form-notes').value || null,
         steps: collectSteps(),
       };
@@ -414,6 +424,7 @@
       document.getElementById('form-slug-edit').value = '';
       document.getElementById('recipe-form').reset();
       document.getElementById('ingredients-list').innerHTML = '';
+      document.getElementById('ingredients2-list').innerHTML = '';
       document.getElementById('steps-list').innerHTML = '';
       document.getElementById('delete-btn').classList.add('hidden');
       hideAddCategory();
@@ -441,6 +452,11 @@
       const ingList = document.getElementById('ingredients-list');
       ingList.innerHTML = '';
       (recipe.ingredients || []).forEach(ing => addIngredient(ing));
+
+      // Ingredients 2
+      const ing2List = document.getElementById('ingredients2-list');
+      ing2List.innerHTML = '';
+      (recipe.ingredients2 || []).forEach(ing => addIngredient2(ing));
 
       // Steps
       const stepList = document.getElementById('steps-list');
@@ -492,6 +508,23 @@
 
     function collectIngredients() {
       return [...document.querySelectorAll('#ingredients-list input')].map(i => i.value).filter(v => v.trim());
+    }
+
+    function addIngredient2(value = '') {
+      const div = document.createElement('div');
+      div.className = 'flex gap-2';
+      div.innerHTML = `
+        <input type="text" value="${esc(value)}" placeholder="Pour la pâte / 250g de farine..."
+          class="flex-1 px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+        <button type="button" onclick="this.parentElement.remove()"
+          class="text-stone-400 hover:text-red-500 px-2">✕</button>
+      `;
+      document.getElementById('ingredients2-list').appendChild(div);
+    }
+
+    function collectIngredients2() {
+      const items = [...document.querySelectorAll('#ingredients2-list input')].map(i => i.value).filter(v => v.trim());
+      return items.length > 0 ? items : null;
     }
 
     function collectSteps() {

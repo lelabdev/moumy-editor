@@ -116,6 +116,7 @@ fn recipe_to_json(recipe: &Recipe) -> Value {
         "servings": recipe.frontmatter.servings,
         "difficulty": recipe.frontmatter.difficulty,
         "ingredients": recipe.frontmatter.ingredients,
+        "ingredients2": recipe.frontmatter.ingredients2,
         "notes": recipe.frontmatter.notes,
         "steps": recipe.steps,
     })
