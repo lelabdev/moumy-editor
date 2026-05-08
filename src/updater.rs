@@ -1,7 +1,7 @@
 use std::env;
 use std::path::PathBuf;
 
-const VERSION: &str = "1.1.1";
+const VERSION: &str = "1.2.0";
 const REPO: &str = "lelabdev/moumy-editor";
 
 pub fn current_version() -> String {
@@ -161,55 +161,14 @@ impl Release {
     }
 }
 
-/// Read GitHub token from env var or gh CLI config
-fn get_github_token() -> Option<String> {
-    // 1. Environment variable
-    if let Ok(token) = env::var("GITHUB_TOKEN") {
-        if !token.is_empty() {
-            return Some(token);
-        }
-    }
-    // 2. Try `gh auth token` command (works on all platforms)
-    if let Ok(output) = std::process::Command::new("gh")
-        .args(["auth", "token"])
-        .output()
-    {
-        if output.status.success() {
-            let token = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if !token.is_empty() {
-                return Some(token);
-            }
-        }
-    }
-    // 3. Fallback: read gh CLI hosts.yml directly
-    let home = env::var("HOME")
-        .or_else(|_| env::var("USERPROFILE"))
-        .unwrap_or_else(|_| ".".to_string());
-    let hosts_path = PathBuf::from(&home).join(".config/gh/hosts.yml");
-    if let Ok(content) = std::fs::read_to_string(&hosts_path) {
-        for line in content.lines() {
-            let trimmed = line.trim();
-            if trimmed.starts_with("oauth_token:") {
-                let token = trimmed.trim_start_matches("oauth_token:").trim();
-                if !token.is_empty() {
-                    return Some(token.to_string());
-                }
-            }
-        }
-    }
-    None
-}
-
 async fn fetch_latest_release() -> Option<Release> {
-     let url = format!("https://api.github.com/repos/{}/releases/latest", REPO);
-    let token = get_github_token();
+    let url = format!("https://api.github.com/repos/{}/releases/latest", REPO);
     let client = reqwest::Client::new();
-    let mut req = client.get(&url)
-        .header("User-Agent", "moumy-editor");
-    if let Some(ref t) = token {
-        req = req.header("Authorization", format!("Bearer {}", t));
-    }
-    let resp = req.send().await.ok()?;
+    let resp = client.get(&url)
+        .header("User-Agent", "moumy-editor")
+        .send()
+        .await
+        .ok()?;
 
     if !resp.status().is_success() {
         return None;
