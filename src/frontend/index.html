@@ -344,9 +344,7 @@
       // Build categories map from existing recipes
       categories.clear();
       allRecipes.forEach(r => {
-        if (r.category && r.categoryLabel) {
-          categories.set(r.category, r.categoryLabel);
-        } else if (r.category) {
+        if (r.category) {
           const label = r.category.charAt(0).toUpperCase() + r.category.slice(1);
           categories.set(r.category, label);
         }
@@ -371,7 +369,6 @@
       const data = {
         title: document.getElementById('form-title').value,
         category: catKey,
-        category_label: catLabel,
         excerpt: document.getElementById('form-excerpt').value || null,
         prep_time: intVal('form-prepTime'),
         cook_time: intVal('form-cookTime'),
@@ -435,14 +432,14 @@
       const search = document.getElementById('search').value.toLowerCase();
       const filtered = allRecipes.filter(r =>
         r.title.toLowerCase().includes(search) ||
-        (r.categoryLabel || r.category).toLowerCase().includes(search)
+        r.category.toLowerCase().includes(search)
       );
 
       // Group by NORMALIZED key (lowercase, trim trailing s) to detect non-standard categories
       const normalized = new Map(); // normalizedKey -> { keys: Set, label, recipes: [] }
       filtered.forEach(r => {
         const rawKey = r.category || 'autres';
-        const catLabel = r.categoryLabel || r.category || 'Autres';
+        const catLabel = r.category || 'Autres';
         const normKey = rawKey.toLowerCase().replace(/s$/, '');
 
         if (!normalized.has(normKey)) {

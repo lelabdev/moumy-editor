@@ -55,7 +55,6 @@ async fn list_recipes(State(state): State<Arc<AppState>>) -> Json<Value> {
                 "slug": r.slug,
                 "title": r.frontmatter.title,
                 "category": r.frontmatter.category,
-                "categoryLabel": r.frontmatter.category_label,
                 "difficulty": r.frontmatter.difficulty,
                 "excerpt": r.frontmatter.excerpt,
             })
@@ -300,7 +299,6 @@ fn recipe_to_json(recipe: &Recipe) -> Value {
         "filename": recipe.filename,
         "title": recipe.frontmatter.title,
         "category": recipe.frontmatter.category,
-        "categoryLabel": recipe.frontmatter.category_label,
         "excerpt": recipe.frontmatter.excerpt,
         "prepTime": recipe.frontmatter.prep_time,
         "cookTime": recipe.frontmatter.cook_time,

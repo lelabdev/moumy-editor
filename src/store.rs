@@ -66,7 +66,6 @@ pub fn serialize_recipe(input: &RecipeInput, slug: &str) -> String {
         slug: Some(slug.to_string()),
         manuscript: Some(String::new()),
         category: input.category.clone(),
-        category_label: input.category_label.clone(),
         excerpt: input.excerpt.clone(),
         prep_time: input.prep_time,
         cook_time: input.cook_time,

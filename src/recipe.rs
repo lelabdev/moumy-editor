@@ -9,9 +9,6 @@ pub struct RecipeFrontmatter {
     pub manuscript: Option<String>,
     pub category: String,
     #[serde(default)]
-    #[serde(rename = "categoryLabel")]
-    pub category_label: Option<String>,
-    #[serde(default)]
     pub excerpt: Option<String>,
     #[serde(default)]
     #[serde(rename = "prepTime")]
@@ -48,8 +45,6 @@ pub struct RecipeInput {
     pub title: String,
     pub slug: Option<String>,
     pub category: String,
-    #[serde(default)]
-    pub category_label: Option<String>,
     #[serde(default)]
     pub excerpt: Option<String>,
     #[serde(default)]
