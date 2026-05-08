@@ -33,6 +33,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/recipes/{slug}", post(update_recipe))
         .route("/api/recipes/{slug}", delete(delete_recipe))
         .route("/api/images/{slug}", get(get_image))
+        .route("/api/orphan-images", get(list_orphan_images))
         .with_state(state)
 }
 
@@ -120,23 +121,66 @@ async fn get_image(
 ) -> Result<impl IntoResponse, StatusCode> {
     let img_dir = state.img_dir();
 
-    // Try common extensions: jpg, jpeg, png, webp
-    for ext in &["jpg", "jpeg", "png", "webp"] {
-        let path = img_dir.join(format!("{}.{}", slug, ext));
-        if path.exists() {
-            let bytes = std::fs::read(&path).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-            let mime = match *ext {
-                "png" => "image/png",
-                "webp" => "image/webp",
-                _ => "image/jpeg",
-            };
-            return Ok((
-                [(header::CONTENT_TYPE, mime)],
-                Body::from(bytes),
-            ));
+    // Try candidates: full slug first, then base slug (before _)
+    let base_slug = slug.split('_').next().unwrap_or(&slug);
+    let candidates = if base_slug != slug {
+        vec![slug.as_str(), base_slug]
+    } else {
+        vec![slug.as_str()]
+    };
+
+    for candidate in candidates {
+        for ext in &["jpg", "jpeg", "png", "webp"] {
+            let path = img_dir.join(format!("{}.{}", candidate, ext));
+            if path.exists() {
+                let bytes = std::fs::read(&path).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+                let mime = match *ext {
+                    "png" => "image/png",
+                    "webp" => "image/webp",
+                    _ => "image/jpeg",
+                };
+                return Ok((
+                    [(header::CONTENT_TYPE, mime)],
+                    Body::from(bytes),
+                ));
+            }
         }
     }
     Err(StatusCode::NOT_FOUND)
+}
+
+async fn list_orphan_images(State(state): State<Arc<AppState>>) -> Json<Value> {
+    let img_dir = state.img_dir();
+
+    // Collect all image basenames (without extension)
+    let mut image_stems: Vec<String> = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(&img_dir) {
+        for entry in entries.flatten() {
+            if let Some(name) = entry.file_name().to_str() {
+                let stem = name.rsplit_once('.').map(|(s, _)| s).unwrap_or(name);
+                image_stems.push(stem.to_string());
+            }
+        }
+    }
+
+    // Collect all recipe slugs + their base slugs
+    let recipes = store::list_recipes(&state.recipes_dir);
+    let mut used_images: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for r in &recipes {
+        used_images.insert(r.slug.clone());
+        if let Some(base) = r.slug.split('_').next() {
+            used_images.insert(base.to_string());
+        }
+    }
+
+    // Orphan = image stem not used by any recipe
+    let orphans: Vec<Value> = image_stems
+        .iter()
+        .filter(|stem| !used_images.contains(*stem))
+        .map(|stem| json!({ "slug": stem }))
+        .collect();
+
+    Json(json!({ "orphanImages": orphans }))
 }
 
 fn recipe_to_json(recipe: &Recipe) -> Value {

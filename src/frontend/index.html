@@ -69,6 +69,48 @@
     .editor-delete:hover {
       color: #dc2626;
     }
+
+    /* Sidebar tabs */
+    .sidebar-tab {
+      flex: 1;
+      padding: 8px 0;
+      text-align: center;
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      transition: all 0.15s;
+      color: #a8a29e;
+    }
+    .sidebar-tab:hover { color: #78716c; }
+    .sidebar-tab.active {
+      color: #d97706;
+      border-bottom-color: #d97706;
+    }
+    .sidebar-tab-badge {
+      display: inline-block;
+      background: #fde68a;
+      color: #92400e;
+      font-size: 0.65rem;
+      padding: 1px 5px;
+      border-radius: 9999px;
+      margin-left: 4px;
+      vertical-align: middle;
+    }
+
+    /* Orphan image card */
+    .orphan-card {
+      cursor: pointer;
+      border-radius: 8px;
+      overflow: hidden;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .orphan-card:hover {
+      transform: scale(1.02);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
   </style>
 </head>
 <body class="bg-stone-50 min-h-screen">
@@ -90,7 +132,13 @@
         <input type="text" id="search" placeholder="Rechercher..." oninput="filterRecipes()"
           class="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
       </div>
+      <!-- Tabs -->
+      <div class="flex border-b border-stone-200">
+        <div class="sidebar-tab active" id="tab-recipes" onclick="switchTab('recipes')">Recettes</div>
+        <div class="sidebar-tab" id="tab-orphans" onclick="switchTab('orphans')">Images <span id="orphan-count" class="sidebar-tab-badge hidden">0</span></div>
+      </div>
       <div id="recipe-tree" class="flex-1 overflow-y-auto"></div>
+      <div id="orphan-tree" class="flex-1 overflow-y-auto hidden"></div>
     </aside>
 
     <!-- Main content: form -->
@@ -361,17 +409,25 @@
         (r.categoryLabel || r.category).toLowerCase().includes(search)
       );
 
-      // Normalize category keys (singular vs plural) and group by category KEY
-      const grouped = new Map();
+      // Group by NORMALIZED key (lowercase, trim trailing s) to detect non-standard categories
+      const normalized = new Map(); // normalizedKey -> { keys: Set, label, recipes: [] }
       filtered.forEach(r => {
-        const catKey = r.category || 'autres';
+        const rawKey = r.category || 'autres';
         const catLabel = r.categoryLabel || r.category || 'Autres';
-        if (!grouped.has(catKey)) grouped.set(catKey, { label: catLabel, recipes: [] });
-        grouped.get(catKey).recipes.push(r);
+        const normKey = rawKey.toLowerCase().replace(/s$/, '');
+
+        if (!normalized.has(normKey)) {
+          normalized.set(normKey, { keys: new Set(), label: catLabel, recipes: [] });
+        }
+        const group = normalized.get(normKey);
+        group.keys.add(rawKey);
+        group.recipes.push(r);
+        // Use the most common label
+        if (!group.label || group.label === rawKey) group.label = catLabel;
       });
 
       // Sort categories alphabetically, recipes by title
-      const sortedCats = [...grouped.entries()].sort((a, b) => a[1].label.localeCompare(b[1].label, 'fr'));
+      const sortedCats = [...normalized.entries()].sort((a, b) => a[1].label.localeCompare(b[1].label, 'fr'));
       sortedCats.forEach(([_, data]) => {
         data.recipes.sort((a, b) => a.title.localeCompare(b.title, 'fr'));
       });
@@ -386,18 +442,21 @@
         </div>
       `;
 
-      sortedCats.forEach(([catKey, data]) => {
+      sortedCats.forEach(([normKey, data]) => {
         const recipes = data.recipes;
         const cat = data.label;
-        const catId = `cat-${catKey.replace(/[^a-z0-9]/gi, '-')}`;
+        const catId = `cat-${normKey.replace(/[^a-z0-9]/gi, '-')}`;
+        const hasMultipleKeys = data.keys.size > 1;
+        const keyList = [...data.keys].join(', ');
 
         html += `
           <div>
             <div class="tree-toggle flex items-center justify-between px-4 py-2 border-b border-stone-50"
-                 onclick="toggleTree('${catId}')">
+                 onclick="toggleTree('${catId}')" title="${hasMultipleKeys ? 'Clés: ' + esc(keyList) : ''}">
               <div class="flex items-center gap-2">
                 <span class="chevron" id="chevron-${catId}">▼</span>
                 <span class="text-sm font-medium text-stone-700">${esc(cat)}</span>
+                ${hasMultipleKeys ? '<span class="text-xs text-amber-500" title="Catégories non-normalisées: ' + esc(keyList) + '">⚠️</span>' : ''}
               </div>
               <span class="text-xs text-stone-400">${recipes.length}</span>
             </div>
@@ -672,8 +731,80 @@
       };
     }
 
+    // --- Orphan images ---
+    let orphanImages = [];
+
+    async function fetchOrphanImages() {
+      try {
+        const res = await fetch('/api/orphan-images');
+        const data = await res.json();
+        orphanImages = data.orphanImages || [];
+      } catch (e) {
+        orphanImages = [];
+      }
+      updateOrphanBadge();
+      renderOrphanTree();
+    }
+
+    function updateOrphanBadge() {
+      const badge = document.getElementById('orphan-count');
+      if (orphanImages.length > 0) {
+        badge.textContent = orphanImages.length;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    }
+
+    function renderOrphanTree() {
+      const container = document.getElementById('orphan-tree');
+      if (orphanImages.length === 0) {
+        container.innerHTML = `
+          <div class="flex flex-col items-center justify-center h-full text-stone-400 p-4">
+            <span class="text-2xl mb-2">📷</span>
+            <p class="text-sm text-center">Toutes les images sont associées à une recette</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = `
+        <div class="p-3 space-y-3">
+          <p class="text-xs text-stone-400 px-1">Images sans recette — cliquer pour créer</p>
+          ${orphanImages.map(img => `
+            <div class="orphan-card bg-white border border-stone-200" onclick="newRecipeFromImage('${esc(img.slug)}')">
+              <img src="/api/images/${esc(img.slug)}" alt="${esc(img.slug)}" class="w-full aspect-[3/4] object-cover" />
+              <div class="px-3 py-2 text-sm font-mono text-stone-600">${esc(img.slug)}</div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    function newRecipeFromImage(slug) {
+      showNewRecipe();
+      document.getElementById('form-slug-edit').value = slug;
+    }
+
+    // --- Tabs ---
+    let currentTab = 'recipes';
+
+    function switchTab(tab) {
+      currentTab = tab;
+      document.getElementById('tab-recipes').classList.toggle('active', tab === 'recipes');
+      document.getElementById('tab-orphans').classList.toggle('active', tab === 'orphans');
+      document.getElementById('recipe-tree').classList.toggle('hidden', tab !== 'recipes');
+      document.getElementById('orphan-tree').classList.toggle('hidden', tab !== 'orphans');
+
+      if (tab === 'orphans' && orphanImages.length === 0) {
+        // Already fetched, render
+        renderOrphanTree();
+      }
+    }
+
     // --- Init ---
     fetchRecipes();
+    fetchOrphanImages();
   </script>
 </body>
 </html>
