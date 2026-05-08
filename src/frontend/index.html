@@ -999,6 +999,7 @@
 
     function collectCurrentData() {
       return JSON.stringify({
+        slug: document.getElementById('form-slug-edit').value,
         title: document.getElementById('form-title').value,
         category: document.getElementById('form-category').value,
         excerpt: document.getElementById('form-excerpt').value,
