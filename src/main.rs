@@ -11,9 +11,18 @@ use server::AppState;
 #[tokio::main]
 async fn main() {
     let dir = env::current_dir().expect("Cannot get current directory");
-    let recipes_dir = PathBuf::from(
-        env::var("RECIPES_DIR").unwrap_or_else(|_| dir.to_str().unwrap().to_string()),
-    );
+
+    // Try: RECIPES_DIR env > ./src/data/recettes/ > current dir
+    let recipes_dir = if let Ok(custom) = env::var("RECIPES_DIR") {
+        PathBuf::from(custom)
+    } else {
+        let default = dir.join("src/data/recettes");
+        if default.exists() {
+            default
+        } else {
+            dir
+        }
+    };
 
     if !recipes_dir.exists() {
         eprintln!("Error: recipes directory not found: {}", recipes_dir.display());
