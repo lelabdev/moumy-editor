@@ -239,13 +239,12 @@
               <button type="button" onclick="showAddCategory()" id="add-cat-btn"
                 class="mt-1 text-xs text-amber-600 hover:text-amber-800 font-medium">+ Nouvelle catégorie...</button>
               <div id="new-category-row" class="hidden mt-2 space-y-2">
-                <input type="text" id="form-new-category" placeholder="Clé (ex: desserts)"
-                  class="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
                 <div class="flex gap-2">
-                  <input type="text" id="form-new-category-label" placeholder="Label affiché (ex: Desserts)"
-                    class="flex-1 px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                  <input type="text" id="form-new-category" placeholder="Nom (ex: Gratins)"
+                    class="flex-1 px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    onkeydown="if(event.key==='Enter'){event.preventDefault();confirmNewCategory()}">
                   <button type="button" onclick="confirmNewCategory()"
-                    class="px-3 py-2 bg-amber-600 text-white rounded-lg text-sm">OK</button>
+                    class="px-3 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium">OK</button>
                   <button type="button" onclick="hideAddCategory()"
                     class="px-3 py-2 text-stone-400 hover:text-stone-600 text-sm">✕</button>
                 </div>
@@ -587,15 +586,17 @@
       document.getElementById('new-category-row').classList.add('hidden');
       document.getElementById('add-cat-btn').classList.remove('hidden');
       document.getElementById('form-new-category').value = '';
-      document.getElementById('form-new-category-label').value = '';
     }
 
     function confirmNewCategory() {
-      const key = document.getElementById('form-new-category').value.trim().toLowerCase()
+      const input = document.getElementById('form-new-category').value.trim();
+      if (!input) return;
+
+      const key = input.toLowerCase()
         .replace(/[^a-z0-9àâäéèêëîïôöùûüç\s-]/gi, '')
         .replace(/\s+/g, '-');
-      const label = document.getElementById('form-new-category-label').value.trim()
-        || key.charAt(0).toUpperCase() + key.slice(1);
+      // Use input as-is for label (capitalized)
+      const label = input.charAt(0).toUpperCase() + input.slice(1);
 
       if (!key) return;
 
@@ -603,6 +604,7 @@
       updateCategoryDropdown();
       document.getElementById('form-category').value = key;
       hideAddCategory();
+      checkDirty();
     }
 
     // --- Form ---
