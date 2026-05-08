@@ -8,6 +8,16 @@ use std::sync::Arc;
 
 use server::AppState;
 
+fn which_bun() -> Option<std::path::PathBuf> {
+    std::process::Command::new("which")
+        .arg("bun")
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| std::path::PathBuf::from(s.trim()))
+}
+
 #[tokio::main]
 async fn main() {
     let dir = env::current_dir().expect("Cannot get current directory");
@@ -43,23 +53,46 @@ async fn main() {
         let port = env::var("SITE_PORT").unwrap_or_else(|_| "5173".into());
         let site_addr = format!("http://localhost:{}", port);
 
-        match tokio::process::Command::new("bun")
-            .args(["dev", "--host", "0.0.0.0", "--port", &port])
-            .current_dir(sdir)
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()
-        {
-            Ok(_) => {
-                println!("🍞 Site dev server started at {}", site_addr);
-                Some(site_addr)
+        // Resolve bun: ~/.bun/bin/bun, then system PATH
+        let bun_path = {
+            let home = std::env::var("HOME").unwrap_or_default();
+            let home_bun = std::path::Path::new(&home).join(".bun/bin/bun");
+            if home_bun.exists() {
+                Some(home_bun)
+            } else {
+                which_bun()
             }
-            Err(e) => {
-                eprintln!("⚠️  Could not start bun dev: {}", e);
-                eprintln!("   The editor works fine without it — the site preview won't be available.");
+        };
+
+        let bun = match bun_path {
+            Some(p) => Some(p),
+            None => {
+                eprintln!("⚠️  bun not found — site preview disabled");
                 None
             }
-        }
+        };
+
+        let site_addr_final = if let Some(ref bun_bin) = bun {
+            match tokio::process::Command::new(bun_bin)
+                .args(["dev", "--host", "0.0.0.0", "--port", &port])
+                .current_dir(sdir)
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .spawn()
+            {
+                Ok(_) => {
+                    println!("🍞 Site dev server started at {}", site_addr);
+                    Some(site_addr)
+                }
+                Err(e) => {
+                    eprintln!("⚠️  Could not start bun dev: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+        site_addr_final
     } else {
         println!("ℹ️  No site project found nearby — site preview disabled");
         None
