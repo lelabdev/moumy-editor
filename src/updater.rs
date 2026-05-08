@@ -161,14 +161,47 @@ impl Release {
     }
 }
 
+/// Read GitHub token from env var or gh CLI config
+fn get_github_token() -> Option<String> {
+    // 1. Environment variable
+    if let Ok(token) = env::var("GITHUB_TOKEN") {
+        if !token.is_empty() {
+            return Some(token);
+        }
+    }
+    // 2. gh CLI hosts.yml
+    let hosts_path = dirs_home().join(".config/gh/hosts.yml");
+    if let Ok(content) = std::fs::read_to_string(&hosts_path) {
+        for line in content.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("oauth_token:") {
+                let token = trimmed.trim_start_matches("oauth_token:").trim();
+                if !token.is_empty() {
+                    return Some(token.to_string());
+                }
+            }
+        }
+    }
+    None
+}
+
+fn dirs_home() -> PathBuf {
+    env::var("HOME")
+        .or_else(|_| env::var("USERPROFILE"))
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from("."))
+}
+
 async fn fetch_latest_release() -> Option<Release> {
-    let url = format!("https://api.github.com/repos/{}/releases/latest", REPO);
+     let url = format!("https://api.github.com/repos/{}/releases/latest", REPO);
+    let token = get_github_token();
     let client = reqwest::Client::new();
-    let resp = client.get(&url)
-        .header("User-Agent", "moumy-editor")
-        .send()
-        .await
-        .ok()?;
+    let mut req = client.get(&url)
+        .header("User-Agent", "moumy-editor");
+    if let Some(ref t) = token {
+        req = req.header("Authorization", format!("Bearer {}", t));
+    }
+    let resp = req.send().await.ok()?;
 
     if !resp.status().is_success() {
         return None;
