@@ -169,8 +169,23 @@ fn get_github_token() -> Option<String> {
             return Some(token);
         }
     }
-    // 2. gh CLI hosts.yml
-    let hosts_path = dirs_home().join(".config/gh/hosts.yml");
+    // 2. Try `gh auth token` command (works on all platforms)
+    if let Ok(output) = std::process::Command::new("gh")
+        .args(["auth", "token"])
+        .output()
+    {
+        if output.status.success() {
+            let token = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !token.is_empty() {
+                return Some(token);
+            }
+        }
+    }
+    // 3. Fallback: read gh CLI hosts.yml directly
+    let home = env::var("HOME")
+        .or_else(|_| env::var("USERPROFILE"))
+        .unwrap_or_else(|_| ".".to_string());
+    let hosts_path = PathBuf::from(&home).join(".config/gh/hosts.yml");
     if let Ok(content) = std::fs::read_to_string(&hosts_path) {
         for line in content.lines() {
             let trimmed = line.trim();
@@ -183,13 +198,6 @@ fn get_github_token() -> Option<String> {
         }
     }
     None
-}
-
-fn dirs_home() -> PathBuf {
-    env::var("HOME")
-        .or_else(|_| env::var("USERPROFILE"))
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("."))
 }
 
 async fn fetch_latest_release() -> Option<Release> {
