@@ -36,7 +36,22 @@ async fn main() {
     let app = server::router(state);
 
     let addr = "0.0.0.0:3210";
-    println!("🧁 Moumy Editor running at http://{}", addr);
+    let url = "http://localhost:3210";
+    println!("🧁 Moumy Editor running at {}", url);
+
+    // Auto-open browser
+    #[cfg(target_os = "linux")]
+    {
+        let _ = std::process::Command::new("xdg-open").arg(url).spawn();
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let _ = std::process::Command::new("open").arg(url).spawn();
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let _ = std::process::Command::new("cmd").args(["/C", "start", url]).spawn();
+    }
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();

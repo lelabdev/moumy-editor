@@ -15,10 +15,60 @@
     .tree-recipe.active { background-color: #fde68a; }
     .chevron { transition: transform 0.15s; display: inline-block; }
     .chevron.collapsed { transform: rotate(-90deg); }
-    .step-input { counter-increment: step; }
-    .step-input::before { content: counter(step) ". "; font-weight: 600; color: #8B6F5C; }
-    .step-list { counter-reset: step; }
     .category-tag { font-size: 0.7rem; padding: 2px 8px; border-radius: 9999px; }
+
+    /* Text editor style for ingredients/steps */
+    .editor-line {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: background-color 0.15s;
+    }
+    .editor-line:hover {
+      background-color: #fef3c7;
+    }
+    .editor-line input {
+      border: none;
+      background: transparent;
+      padding: 4px 0;
+      width: 100%;
+      font-size: 0.95rem;
+      color: #44403c;
+    }
+    .editor-line input:focus {
+      outline: none;
+    }
+    .editor-line input::placeholder {
+      color: #a8a29e;
+    }
+    .editor-bullet {
+      color: #78716c;
+      font-weight: 500;
+      padding-top: 4px;
+      user-select: none;
+    }
+    .editor-number {
+      color: #8B6F5C;
+      font-weight: 600;
+      min-width: 28px;
+      padding-top: 4px;
+      user-select: none;
+    }
+    .editor-delete {
+      color: #a8a29e;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.15s;
+      padding: 4px;
+    }
+    .editor-line:hover .editor-delete {
+      opacity: 1;
+    }
+    .editor-delete:hover {
+      color: #dc2626;
+    }
   </style>
 </head>
 <body class="bg-stone-50 min-h-screen">
@@ -52,10 +102,10 @@
         <form id="recipe-form" onsubmit="saveRecipe(event)">
           <input type="hidden" id="form-slug">
 
-          <div class="flex gap-8 p-8 max-w-5xl mx-auto">
-            <!-- Left: Manuscript image -->
-            <div class="w-64 shrink-0">
-              <div id="manuscript-preview" class="sticky top-8">
+          <div class="flex flex-col md:flex-row gap-6 p-6 h-full">
+            <!-- Left: Manuscript image (50% on desktop) -->
+            <div class="md:w-1/2 shrink-0">
+              <div id="manuscript-preview" class="sticky top-4">
                 <div id="manuscript-placeholder" class="aspect-[3/4] bg-stone-100 rounded-xl border-2 border-dashed border-stone-300 flex items-center justify-center">
                   <span class="text-stone-400 text-sm">Pas d'image</span>
                 </div>
@@ -63,8 +113,8 @@
               </div>
             </div>
 
-            <!-- Right: Form fields -->
-            <div class="flex-1 min-w-0">
+            <!-- Right: Form fields (50% on desktop) -->
+            <div class="md:w-1/2 flex-1 min-w-0 overflow-y-auto">
               <!-- Title + Slug inline -->
               <div class="mb-6">
                 <label class="block text-sm font-medium text-stone-700 mb-1">Titre *</label>
@@ -170,7 +220,7 @@
           <!-- Steps -->
           <div class="mb-6">
             <label class="block text-sm font-medium text-stone-700 mb-1">Étapes</label>
-            <div id="steps-list" class="step-list space-y-2 mb-2"></div>
+            <div id="steps-list" class="space-y-2 mb-2"></div>
             <button type="button" onclick="addStep()"
               class="text-amber-600 hover:text-amber-800 text-sm font-medium">+ Ajouter une étape</button>
           </div>
@@ -518,12 +568,11 @@
     // --- Dynamic lists ---
     function addIngredient(value = '') {
       const div = document.createElement('div');
-      div.className = 'flex gap-2';
+      div.className = 'editor-line';
       div.innerHTML = `
-        <input type="text" value="${esc(value)}" placeholder="200g de farine"
-          class="flex-1 px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
-        <button type="button" onclick="this.parentElement.remove()"
-          class="text-stone-400 hover:text-red-500 px-2">✕</button>
+        <span class="editor-bullet">•</span>
+        <input type="text" value="${esc(value)}" placeholder="200g de farine">
+        <span class="editor-delete" onclick="this.parentElement.remove()">✕</span>
       `;
       const input = div.querySelector('input');
       input.addEventListener('keydown', e => {
@@ -535,12 +584,12 @@
 
     function addStep(value = '') {
       const div = document.createElement('div');
-      div.className = 'step-input flex gap-2';
+      div.className = 'editor-line step-input';
+      const stepNum = document.querySelectorAll('.step-input').length + 1;
       div.innerHTML = `
-        <input type="text" value="${esc(value)}" placeholder="Mélanger le tout..."
-          class="flex-1 px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
-        <button type="button" onclick="this.parentElement.remove()"
-          class="text-stone-400 hover:text-red-500 px-2">✕</button>
+        <span class="editor-number">${stepNum}.</span>
+        <input type="text" value="${esc(value)}" placeholder="Mélanger le tout...">
+        <span class="editor-delete" onclick="this.parentElement.remove()">✕</span>
       `;
       const input = div.querySelector('input');
       input.addEventListener('keydown', e => {
@@ -556,12 +605,11 @@
 
     function addIngredient2(value = '') {
       const div = document.createElement('div');
-      div.className = 'flex gap-2';
+      div.className = 'editor-line';
       div.innerHTML = `
-        <input type="text" value="${esc(value)}" placeholder="250g de farine..."
-          class="flex-1 px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
-        <button type="button" onclick="this.parentElement.remove()"
-          class="text-stone-400 hover:text-red-500 px-2">✕</button>
+        <span class="editor-bullet">•</span>
+        <input type="text" value="${esc(value)}" placeholder="250g de farine...">
+        <span class="editor-delete" onclick="this.parentElement.remove()">✕</span>
       `;
       const input = div.querySelector('input');
       input.addEventListener('keydown', e => {
