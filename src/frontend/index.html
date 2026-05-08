@@ -164,6 +164,21 @@
                   <span class="text-stone-400 text-sm">Pas d'image</span>
                 </div>
                 <img id="manuscript-img" class="hidden w-full rounded-xl shadow-lg" alt="Manuscrit" />
+                <!-- OCR button -->
+                <button id="ocr-btn" onclick="runOcr()" class="hidden mt-3 w-full bg-stone-100 hover:bg-amber-50 border border-stone-200 text-stone-600 hover:text-amber-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                  🔍 OCR — Transcrire
+                </button>
+                <!-- OCR result -->
+                <div id="ocr-result" class="hidden mt-3">
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs font-medium text-stone-500 uppercase">Transcription</span>
+                    <div class="flex gap-2">
+                      <button onclick="copyOcrResult()" class="text-xs text-amber-600 hover:text-amber-800">📋 Copier</button>
+                      <button onclick="closeOcrResult()" class="text-xs text-stone-400 hover:text-stone-600">✕</button>
+                    </div>
+                  </div>
+                  <pre id="ocr-text" class="bg-white border border-stone-200 rounded-lg p-3 text-sm text-stone-700 whitespace-pre-wrap font-sans max-h-64 overflow-y-auto"></pre>
+                </div>
               </div>
             </div>
 
@@ -721,6 +736,8 @@
     }
 
     // --- Manuscript image ---
+    let ocrAvailable = false;
+
     function loadManuscriptImage(slug) {
       const img = document.getElementById('manuscript-img');
       const placeholder = document.getElementById('manuscript-placeholder');
@@ -730,11 +747,53 @@
       img.onload = () => {
         img.classList.remove('hidden');
         placeholder.classList.add('hidden');
+        // Show OCR button if available
+        if (ocrAvailable) document.getElementById('ocr-btn').classList.remove('hidden');
       };
       img.onerror = () => {
         img.classList.add('hidden');
         placeholder.classList.remove('hidden');
+        document.getElementById('ocr-btn').classList.add('hidden');
       };
+    }
+
+    async function runOcr() {
+      const slug = document.getElementById('form-slug').value || document.getElementById('form-slug-edit').value;
+      if (!slug) return;
+
+      const btn = document.getElementById('ocr-btn');
+      const result = document.getElementById('ocr-result');
+      const textEl = document.getElementById('ocr-text');
+
+      btn.textContent = '⏳ Analyse en cours...';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch(`/api/ocr/${slug}`, { method: 'POST' });
+        const data = await res.json();
+
+        if (!res.ok) {
+          alert('OCR erreur: ' + (data.error || 'Unknown error'));
+          return;
+        }
+
+        textEl.textContent = data.text || '(aucun texte détecté)';
+        result.classList.remove('hidden');
+      } catch (e) {
+        alert('OCR erreur: ' + e.message);
+      } finally {
+        btn.textContent = '🔍 OCR — Transcrire';
+        btn.disabled = false;
+      }
+    }
+
+    function copyOcrResult() {
+      const text = document.getElementById('ocr-text').textContent;
+      navigator.clipboard.writeText(text);
+    }
+
+    function closeOcrResult() {
+      document.getElementById('ocr-result').classList.add('hidden');
     }
 
     // --- Orphan images ---
@@ -812,6 +871,15 @@
     fetchRecipes();
     fetchOrphanImages();
     initSiteLink();
+    checkOcrStatus();
+
+    async function checkOcrStatus() {
+      try {
+        const res = await fetch('/api/ocr-status');
+        const data = await res.json();
+        ocrAvailable = data.available === true;
+      } catch (e) {}
+    }
 
     async function initSiteLink() {
       try {

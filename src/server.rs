@@ -14,6 +14,7 @@ use crate::store;
 pub struct AppState {
     pub recipes_dir: PathBuf,
     pub site_url: Option<String>,
+    pub mistral_api_key: Option<String>,
 }
 
 impl AppState {
@@ -36,6 +37,8 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/images/{slug}", get(get_image))
         .route("/api/orphan-images", get(list_orphan_images))
         .route("/api/site-url", get(get_site_url))
+        .route("/api/ocr/{slug}", post(ocr_image))
+        .route("/api/ocr-status", get(ocr_status))
         .with_state(state)
 }
 
@@ -189,6 +192,106 @@ async fn get_site_url(State(state): State<Arc<AppState>>) -> Json<Value> {
     Json(json!({
         "siteUrl": state.site_url,
     }))
+}
+
+async fn ocr_status(State(state): State<Arc<AppState>>) -> Json<Value> {
+    Json(json!({
+        "available": state.mistral_api_key.is_some(),
+    }))
+}
+
+async fn ocr_image(
+    State(state): State<Arc<AppState>>,
+    Path(slug): Path<String>,
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    let api_key = state.mistral_api_key.as_ref().ok_or((
+        StatusCode::SERVICE_UNAVAILABLE,
+        Json(json!({ "error": "MISTRAL_API_KEY not configured" })),
+    ))?;
+
+    // Read the image file
+    let img_dir = state.img_dir();
+    let base_slug = slug.split('_').next().unwrap_or(&slug);
+    let candidates = if base_slug != slug {
+        vec![slug.as_str(), base_slug]
+    } else {
+        vec![slug.as_str()]
+    };
+
+    let mut image_bytes = None;
+    let mut mime = "image/jpeg";
+    for candidate in &candidates {
+        for ext in &["jpg", "jpeg", "png", "webp"] {
+            let path = img_dir.join(format!("{}.{}", candidate, ext));
+            if path.exists() {
+                match std::fs::read(&path) {
+                    Ok(bytes) => {
+                        mime = match *ext {
+                            "png" => "image/png",
+                            "webp" => "image/webp",
+                            _ => "image/jpeg",
+                        };
+                        image_bytes = Some(bytes);
+                        break;
+                    }
+                    Err(_) => continue,
+                }
+            }
+        }
+        if image_bytes.is_some() { break; }
+    }
+
+    let image_bytes = image_bytes.ok_or((
+        StatusCode::NOT_FOUND,
+        Json(json!({ "error": "Image not found" })),
+    ))?;
+
+    let b64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &image_bytes);
+    let data_uri = format!("data:{};base64,{}", mime, b64);
+
+    // Call Mistral OCR API
+    let client = reqwest::Client::new();
+    let body = serde_json::json!({
+        "model": "mistral-ocr-latest",
+        "document": {
+            "type": "image_url",
+            "image_url": data_uri,
+        }
+    });
+
+    let resp = client
+        .post("https://api.mistral.ai/v1/ocr")
+        .header("Authorization", format!("Bearer {}", api_key))
+        .header("Content-Type", "application/json")
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| {
+            (StatusCode::BAD_GATEWAY, Json(json!({ "error": format!("Mistral request failed: {}", e) })))
+        })?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        return Err((
+            StatusCode::BAD_GATEWAY,
+            Json(json!({ "error": format!("Mistral API error {}: {}", status, text) })),
+        ));
+    }
+
+    let result: serde_json::Value = resp.json().await.map_err(|e| {
+        (StatusCode::BAD_GATEWAY, Json(json!({ "error": format!("Parse error: {}", e) })))
+    })?;
+
+    // Extract markdown text from pages
+    let pages = result.get("pages").and_then(|p| p.as_array()).cloned().unwrap_or_default();
+    let text: String = pages
+        .iter()
+        .filter_map(|p| p.get("markdown").and_then(|m| m.as_str()))
+        .collect::<Vec<_>>()
+        .join("\n\n");
+
+    Ok(Json(json!({ "text": text })))
 }
 
 fn recipe_to_json(recipe: &Recipe) -> Value {

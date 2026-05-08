@@ -106,7 +106,14 @@ async fn main() {
         None
     };
 
-    let state = Arc::new(AppState { recipes_dir, site_url });
+    let mistral_api_key = env::var("MISTRAL_API_KEY").ok();
+    if mistral_api_key.is_some() {
+        println!("🔍 Mistral OCR enabled");
+    } else {
+        println!("ℹ️  MISTRAL_API_KEY not set — OCR disabled");
+    }
+
+    let state = Arc::new(AppState { recipes_dir, site_url, mistral_api_key });
     let app = server::router(state);
 
     let addr = "0.0.0.0:3210";
