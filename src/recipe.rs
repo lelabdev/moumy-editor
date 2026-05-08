@@ -25,7 +25,10 @@ pub struct RecipeFrontmatter {
     pub difficulty: Option<String>,
     #[serde(default)]
     pub ingredients: Vec<String>,
-    /// Optional second ingredient list. First item = section title, rest = ingredients.
+    /// Title for the second ingredient list (e.g. "Pour la pâte")
+    #[serde(default, rename = "ingredients2Title")]
+    pub ingredients2_title: Option<String>,
+    /// Optional second ingredient list (items only, no title)
     #[serde(default, rename = "ingredients2")]
     pub ingredients2: Option<Vec<String>>,
     #[serde(default)]

@@ -104,16 +104,6 @@ async fn delete_recipe(
 }
 
 fn recipe_to_json(recipe: &Recipe) -> Value {
-    // Split ingredients2: first item = title, rest = items
-    let (i2_title, i2_items): (Option<String>, Option<Vec<String>>) = match &recipe.frontmatter.ingredients2 {
-        Some(items) if !items.is_empty() => {
-            let title = Some(items[0].clone());
-            let rest = if items.len() > 1 { Some(items[1..].to_vec()) } else { None };
-            (title, rest)
-        }
-        _ => (None, None),
-    };
-
     json!({
         "slug": recipe.slug,
         "filename": recipe.filename,
@@ -126,8 +116,8 @@ fn recipe_to_json(recipe: &Recipe) -> Value {
         "servings": recipe.frontmatter.servings,
         "difficulty": recipe.frontmatter.difficulty,
         "ingredients": recipe.frontmatter.ingredients,
-        "ingredients2Title": i2_title,
-        "ingredients2": i2_items,
+        "ingredients2Title": recipe.frontmatter.ingredients2_title,
+        "ingredients2": recipe.frontmatter.ingredients2,
         "notes": recipe.frontmatter.notes,
         "steps": recipe.steps,
     })

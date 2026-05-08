@@ -61,22 +61,6 @@ fn parse_steps(body: &str) -> Vec<String> {
 
 /// Serialize a Recipe back to a .md file string.
 pub fn serialize_recipe(input: &RecipeInput, slug: &str) -> String {
-    // Reconstruct ingredients2: title + items merged into single list
-    let ingredients2 = match (&input.ingredients2_title, &input.ingredients2) {
-        (Some(title), Some(items)) if !title.is_empty() && !items.is_empty() => {
-            let mut combined = vec![title.clone()];
-            combined.extend(items.iter().cloned());
-            Some(combined)
-        }
-        (Some(title), Some(items)) if !title.is_empty() && items.is_empty() => {
-            Some(vec![title.clone()])
-        }
-        (Some(title), None) if !title.is_empty() => {
-            Some(vec![title.clone()])
-        }
-        _ => None,
-    };
-
     let fm = RecipeFrontmatter {
         title: input.title.clone(),
         slug: Some(slug.to_string()),
@@ -89,7 +73,8 @@ pub fn serialize_recipe(input: &RecipeInput, slug: &str) -> String {
         servings: input.servings,
         difficulty: input.difficulty.clone(),
         ingredients: input.ingredients.clone(),
-        ingredients2,
+        ingredients2_title: input.ingredients2_title.clone(),
+        ingredients2: input.ingredients2.clone(),
         notes: input.notes.clone(),
     };
 
