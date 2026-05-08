@@ -159,16 +159,23 @@
           <div class="flex flex-col md:flex-row gap-6 p-6 h-full">
             <!-- Left: Manuscript image (50% on desktop) -->
             <div class="md:w-1/2 shrink-0 p-6">
-              <div id="manuscript-preview" class="sticky top-4">
+              <!-- Tabs Image / OCR -->
+              <div class="flex border-b border-stone-200 mb-3">
+                <div class="sidebar-tab active" id="tab-image" onclick="switchImageTab('image')">Image</div>
+                <div class="sidebar-tab" id="tab-ocr-tab" onclick="switchImageTab('ocr')">OCR <span id="ocr-tab-badge" class="hidden sidebar-tab-badge">✓</span></div>
+              </div>
+              <!-- Image panel -->
+              <div id="image-panel">
                 <div id="manuscript-placeholder" class="aspect-[3/4] bg-stone-100 rounded-xl border-2 border-dashed border-stone-300 flex items-center justify-center">
                   <span class="text-stone-400 text-sm">Pas d'image</span>
                 </div>
                 <img id="manuscript-img" class="hidden w-full rounded-xl shadow-lg" alt="Manuscrit" />
-                <!-- OCR button -->
-                <button id="ocr-btn" onclick="runOcr()" class="hidden mt-3 w-full bg-stone-100 hover:bg-amber-50 border border-stone-200 text-stone-600 hover:text-amber-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-                  🔍 OCR — Transcrire
+              </div>
+              <!-- OCR panel -->
+              <div id="ocr-panel" class="hidden">
+                <button id="ocr-btn" onclick="runOcr()" class="hidden w-full bg-stone-100 hover:bg-amber-50 border border-stone-200 text-stone-600 hover:text-amber-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                  🔍 Lancer la transcription
                 </button>
-                <!-- OCR result -->
                 <div id="ocr-result" class="hidden mt-3">
                   <div class="flex items-center justify-between mb-1">
                     <span class="text-xs font-medium text-stone-500 uppercase">Transcription</span>
@@ -177,8 +184,9 @@
                       <button onclick="closeOcrResult()" class="text-xs text-stone-400 hover:text-stone-600">✕</button>
                     </div>
                   </div>
-                  <pre id="ocr-text" class="bg-white border border-stone-200 rounded-lg p-3 text-sm text-stone-700 whitespace-pre-wrap font-sans max-h-64 overflow-y-auto"></pre>
+                  <pre id="ocr-text" class="bg-white border border-stone-200 rounded-lg p-3 text-sm text-stone-700 whitespace-pre-wrap font-sans max-h-[70vh] overflow-y-auto"></pre>
                 </div>
+                <p id="ocr-placeholder" class="text-stone-400 text-sm text-center mt-8">Cliquez sur "Lancer la transcription" pour analyser le manuscrit</p>
               </div>
             </div>
 
@@ -573,11 +581,13 @@
       document.getElementById('form-slug-edit').value = '';
       document.getElementById('recipe-form').reset();
       document.getElementById('ingredients-list').innerHTML = '';
+      addIngredient(); // Start with one empty line
       document.getElementById('ingredients2-list').innerHTML = '';
       document.getElementById('form-ingredients2-title').value = '';
       document.getElementById('ingredients2-section').classList.add('hidden');
       document.getElementById('add-i2-btn').classList.remove('hidden');
       document.getElementById('steps-list').innerHTML = '';
+      addStep(); // Start with one empty line
       document.getElementById('delete-btn').classList.add('hidden');
       hideAddCategory();
       // Reset manuscript
@@ -607,12 +617,14 @@
       const ingList = document.getElementById('ingredients-list');
       ingList.innerHTML = '';
       (recipe.ingredients || []).forEach(ing => addIngredient(ing));
+      addIngredient(); // Always one empty line
 
       // Ingredients 2
       const ing2List = document.getElementById('ingredients2-list');
       ing2List.innerHTML = '';
       document.getElementById('form-ingredients2-title').value = recipe.ingredients2Title || '';
       (recipe.ingredients2 || []).forEach(ing => addIngredient2(ing));
+      if (recipe.ingredients2 && recipe.ingredients2.length > 0) addIngredient2();
 
       // Show/hide ingredients2 section based on data
       const hasI2 = recipe.ingredients2Title || (recipe.ingredients2 && recipe.ingredients2.length > 0);
@@ -626,6 +638,7 @@
       const stepList = document.getElementById('steps-list');
       stepList.innerHTML = '';
       (recipe.steps || []).forEach(step => addStep(step));
+      addStep(); // Always one empty line
 
       document.getElementById('delete-btn').classList.remove('hidden');
       hideAddCategory();
@@ -738,6 +751,13 @@
     // --- Manuscript image ---
     let ocrAvailable = false;
 
+    function switchImageTab(tab) {
+      document.getElementById('tab-image').classList.toggle('active', tab === 'image');
+      document.getElementById('tab-ocr-tab').classList.toggle('active', tab === 'ocr');
+      document.getElementById('image-panel').classList.toggle('hidden', tab !== 'image');
+      document.getElementById('ocr-panel').classList.toggle('hidden', tab !== 'ocr');
+    }
+
     function loadManuscriptImage(slug) {
       const img = document.getElementById('manuscript-img');
       const placeholder = document.getElementById('manuscript-placeholder');
@@ -764,6 +784,7 @@
       const btn = document.getElementById('ocr-btn');
       const result = document.getElementById('ocr-result');
       const textEl = document.getElementById('ocr-text');
+      const placeholderEl = document.getElementById('ocr-placeholder');
 
       btn.textContent = '⏳ Analyse en cours...';
       btn.disabled = true;
@@ -779,10 +800,12 @@
 
         textEl.textContent = data.text || '(aucun texte détecté)';
         result.classList.remove('hidden');
+        placeholderEl.classList.add('hidden');
+        document.getElementById('ocr-tab-badge').classList.remove('hidden');
       } catch (e) {
         alert('OCR erreur: ' + e.message);
       } finally {
-        btn.textContent = '🔍 OCR — Transcrire';
+        btn.textContent = '🔍 Relancer la transcription';
         btn.disabled = false;
       }
     }
