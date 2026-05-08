@@ -29,6 +29,7 @@ impl AppState {
 pub fn router(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/", get(index))
+        .route("/styles.css", get(styles))
         .route("/api/recipes", get(list_recipes))
         .route("/api/recipes/{slug}", get(get_recipe))
         .route("/api/recipes", post(create_recipe))
@@ -48,6 +49,13 @@ pub fn router(state: Arc<AppState>) -> Router {
 
 async fn index() -> Html<&'static str> {
     Html(include_str!("frontend/index.html"))
+}
+
+async fn styles() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/css")],
+        include_str!("frontend/styles.css"),
+    )
 }
 
 async fn list_recipes(State(state): State<Arc<AppState>>) -> Json<Value> {
