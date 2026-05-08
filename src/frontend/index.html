@@ -1,65 +1,968 @@
-    <div class="tree-toggle flex items-center justify-between px-4 py-2 border-b border-stone-100" onclick="toggleTreeAll()">
-      <span class="text-xs font-medium text-stone-500 uppercase tracking-wider">Toutes les recettes</span>
-      <span class="text-xs text-stone-400">${total}</span>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Moumy — Éditeur de recettes</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; }
+    .tree-toggle { cursor: pointer; user-select: none; }
+    .tree-toggle:hover { background-color: #fef3c7; }
+    .tree-children { overflow: hidden; }
+    .tree-children.collapsed { display: none; }
+    .tree-recipe:hover { background-color: #fef3c7; }
+    .tree-recipe.active { background-color: #fde68a; }
+    .chevron { transition: transform 0.15s; display: inline-block; }
+    .chevron.collapsed { transform: rotate(-90deg); }
+    .category-tag { font-size: 0.7rem; padding: 2px 8px; border-radius: 9999px; }
+
+    /* Text editor style for ingredients/steps */
+    .editor-line {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: background-color 0.15s;
+    }
+    .editor-line:hover {
+      background-color: #fef3c7;
+    }
+    .editor-line input {
+      border: none;
+      background: transparent;
+      padding: 4px 0;
+      width: 100%;
+      font-size: 0.95rem;
+      color: #44403c;
+    }
+    .editor-line input:focus {
+      outline: none;
+    }
+    .editor-line input::placeholder {
+      color: #a8a29e;
+    }
+    .editor-bullet {
+      color: #78716c;
+      font-weight: 500;
+      padding-top: 4px;
+      user-select: none;
+    }
+    .editor-number {
+      color: #8B6F5C;
+      font-weight: 600;
+      min-width: 28px;
+      padding-top: 4px;
+      user-select: none;
+    }
+    .editor-delete {
+      color: #a8a29e;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.15s;
+      padding: 4px;
+    }
+    .editor-line:hover .editor-delete {
+      opacity: 1;
+    }
+    .editor-delete:hover {
+      color: #dc2626;
+    }
+
+    /* Sidebar tabs */
+    .sidebar-tab {
+      flex: 1;
+      padding: 8px 0;
+      text-align: center;
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      transition: all 0.15s;
+      color: #a8a29e;
+    }
+    .sidebar-tab:hover { color: #78716c; }
+    .sidebar-tab.active {
+      color: #d97706;
+      border-bottom-color: #d97706;
+    }
+    .sidebar-tab-badge {
+      display: inline-block;
+      background: #fde68a;
+      color: #92400e;
+      font-size: 0.65rem;
+      padding: 1px 5px;
+      border-radius: 9999px;
+      margin-left: 4px;
+      vertical-align: middle;
+    }
+
+    /* Orphan image card */
+    .orphan-card {
+      cursor: pointer;
+      border-radius: 8px;
+      overflow: hidden;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .orphan-card:hover {
+      transform: scale(1.02);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body class="bg-stone-50 min-h-screen">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-stone-200 px-6 py-4 flex items-center justify-between">
+    <h1 class="text-xl font-bold text-stone-800">📝 Moumy — Recettes</h1>
+    <div class="flex items-center gap-3">
+      <button id="git-push-btn" onclick="gitPush()" class="hidden bg-stone-100 hover:bg-amber-50 text-stone-600 hover:text-amber-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+        📤 <span id="git-count">0</span> fichier(s)
+      </button>
+      <a id="site-link" href="#" target="_blank" rel="noopener"
+        class="hidden bg-stone-100 hover:bg-stone-200 text-stone-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+        🌐 Voir le site
+      </a>
+      <button onclick="showNewRecipe()" class="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
+        + Nouvelle recette
+      </button>
     </div>
-    `;
+  </header>
 
-const container = document.getElementById('recipe-tree');
-const total = allRecipes.length;
+  <!-- Main layout -->
+  <div class="flex h-[calc(100vh-65px)]">
 
-const cat = (data) ? data.category : 'tous';
-const header = cat === 'tous' ? 'Toutes les recettes' : cat;
+    <!-- Sidebar: tree view by category -->
+    <aside id="sidebar" class="w-80 bg-white border-r border-stone-200 flex flex-col">
+      <div class="p-4">
+        <input type="text" id="search" placeholder="Rechercher..." oninput="filterRecipes()"
+          class="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+      </div>
+      <!-- Tabs -->
+      <div class="flex border-b border-stone-200">
+        <div class="sidebar-tab active" id="tab-recipes" onclick="switchTab('recipes')">Recettes</div>
+        <div class="sidebar-tab" id="tab-orphans" onclick="switchTab('orphans')">Images <span id="orphan-count" class="sidebar-tab-badge hidden">0</span></div>
+      </div>
+      <div id="recipe-tree" class="flex-1 overflow-y-auto"></div>
+      <div id="orphan-tree" class="flex-1 overflow-y-auto hidden"></div>
+    </aside>
 
-let html = `
-<div class="tree-toggle flex items-center justify-between px-4 py-2 border-b border-stone-100" onclick="toggleTreeAll()">
-  <span class="text-xs font-medium text-stone-500 uppercase tracking-wider">Toutes les recettes</span>
-  <span class="text-xs text-stone-400">${total}</span>
-</div>
-`;
-container.innerHTML = html;
+    <!-- Main content: form -->
+    <main id="main" class="flex-1 overflow-y-auto">
+      <div id="empty-state" class="flex items-center justify-center h-full text-stone-400">
+        <p>Sélectionnez ou créez une recette</p>
+      </div>
+      <div id="form-container" class="hidden">
+        <form id="recipe-form" onsubmit="saveRecipe(event)">
+          <input type="hidden" id="form-slug">
 
-// Setup dirty tracking on form
-setupDirtyWatchers();
+          <div class="flex flex-col md:flex-row gap-6 p-6 h-full">
+            <!-- Left: Manuscript image (50% on desktop) -->
+            <div class="md:w-1/2 shrink-0 p-6">
+              <!-- Tabs Image / OCR -->
+              <div class="flex border-b border-stone-200 mb-3">
+                <div class="sidebar-tab active" id="tab-image" onclick="switchImageTab('image')">Image</div>
+                <div class="sidebar-tab" id="tab-ocr-tab" onclick="switchImageTab('ocr')">OCR <span id="ocr-tab-badge" class="hidden sidebar-tab-badge">✓</span></div>
+              </div>
+              <!-- Image panel -->
+              <div id="image-panel">
+                <div id="manuscript-placeholder" class="aspect-[3/4] bg-stone-100 rounded-xl border-2 border-dashed border-stone-300 flex items-center justify-center">
+                  <span class="text-stone-400 text-sm">Pas d'image</span>
+                </div>
+                <img id="manuscript-img" class="hidden w-full rounded-xl shadow-lg" alt="Manuscrit" />
+              </div>
+              <!-- OCR panel -->
+              <div id="ocr-panel" class="hidden">
+                <button id="ocr-btn" onclick="runOcr()" class="hidden w-full bg-stone-100 hover:bg-amber-50 border border-stone-200 text-stone-600 hover:text-amber-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                  🔍 Lancer la transcription
+                </button>
+                <div id="ocr-result" class="hidden mt-3">
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs font-medium text-stone-500 uppercase">Transcription</span>
+                    <div class="flex gap-2">
+                      <button onclick="copyOcrResult()" class="text-xs text-amber-600 hover:text-amber-800">📋 Copier</button>
+                      <button onclick="closeOcrResult()" class="text-xs text-stone-400 hover:text-stone-600">✕</button>
+                    </div>
+                  </div>
+                  <pre id="ocr-text" class="bg-white border border-stone-200 rounded-lg p-3 text-sm text-stone-700 whitespace-pre-wrap font-sans max-h-[70vh] overflow-y-auto"></pre>
+                </div>
+                <p id="ocr-placeholder" class="text-stone-400 text-sm text-center mt-8">Cliquez sur "Lancer la transcription" pour analyser le manuscrit</p>
+              </div>
+            </div>
 
-function toggleTreeAll() {
-  const treeContainer = document.getElementById('orphan-tree');
-  const treeBtn = document.getElementById('tree-toggle');
+            <!-- Right: Form fields (50% on desktop) -->
+            <div class="md:w-1/2 flex-1 min-w-0 overflow-y-auto">
+              <!-- Title + Slug inline -->
+              <div class="mb-6">
+                <label class="block text-sm font-medium text-stone-700 mb-1">Titre *</label>
+                <input type="text" id="form-title" required
+                  class="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500">
+                <div class="mt-1.5 flex items-center gap-2">
+                  <label class="text-xs text-stone-400">Slug:</label>
+                  <input type="text" id="form-slug-edit"
+                    class="flex-1 px-2 py-1 border border-stone-200 rounded text-xs font-mono text-stone-500 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-stone-50"
+                    placeholder="auto-généré depuis le titre">
+                  <span class="text-xs text-stone-400">.md</span>
+                </div>
+              </div>
 
-  if (treeContainer.innerHTML.includes('Toutes les recettes')) {
-    treeContainer.innerHTML = '';
-    treeBtn.classList.add('border-b');
-  } else {
-    renderOrphanTree();
-    treeBtn.classList.remove('border-b');
-  }
-}
+          <!-- Category + Difficulty row -->
+          <div class="grid grid-cols-2 gap-4 mb-6">
+            <div>
+              <label class="block text-sm font-medium text-stone-700 mb-1">Catégorie *</label>
+              <select id="form-category" required
+                class="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500">
+              </select>
+              <button type="button" onclick="showAddCategory()" id="add-cat-btn"
+                class="mt-1 text-xs text-amber-600 hover:text-amber-800 font-medium">+ Nouvelle catégorie...</button>
+              <div id="new-category-row" class="hidden mt-2 space-y-2">
+                <input type="text" id="form-new-category" placeholder="Clé (ex: desserts)"
+                  class="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                <div class="flex gap-2">
+                  <input type="text" id="form-new-category-label" placeholder="Label affiché (ex: Desserts)"
+                    class="flex-1 px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                  <button type="button" onclick="confirmNewCategory()"
+                    class="px-3 py-2 bg-amber-600 text-white rounded-lg text-sm">OK</button>
+                  <button type="button" onclick="hideAddCategory()"
+                    class="px-3 py-2 text-stone-400 hover:text-stone-600 text-sm">✕</button>
+                </div>
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-stone-700 mb-1">Difficulté</label>
+              <select id="form-difficulty"
+                class="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500">
+                <option value="">—</option>
+                <option value="Facile">Facile</option>
+                <option value="Moyen">Moyen</option>
+                <option value="Difficile">Difficile</option>
+              </select>
+            </div>
+          </div>
 
-function renderOrphanTree() {
-  const container = document.getElementById('orphan-tree');
-  if (orphanImages.length === 0) {
-    container.innerHTML = `
-<div class="flex flex-col items-center justify-center h-full text-stone-400 p-4">
-  <span class="text-2xl mb-2">📷</span>
-  <p class="text-sm text-center">Toutes les images sont associées à une recette</p>
-  <p class="text-xs text-center">Images sans recette — cliquer pour créer</p>
-</div>
-`;
-  } else {
-    let html = '';
-    orphanImages.forEach((img, i) => {
-      html += `
-<div class="orphan-card bg-white border border-stone-200" onclick="newRecipeFromImage('${esc(img.slug)}')">
-  <img src="/api/images/${esc(img.slug)}" alt="${esc(img.slug)}" class="w-full aspect-[3/4] object-cover" />
-  <div class="px-3 py-2">
-    <span class="text-xs font-medium text-stone-500 uppercase">${esc(img.slug)}</span>
+          <!-- Times + Servings row -->
+          <div class="grid grid-cols-3 gap-4 mb-6">
+            <div>
+              <label class="block text-sm font-medium text-stone-700 mb-1">Préparation (min)</label>
+              <input type="number" id="form-prepTime" min="0"
+                class="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-stone-700 mb-1">Cuisson (min)</label>
+              <input type="number" id="form-cookTime" min="0"
+                class="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-stone-700 mb-1">Portions</label>
+              <input type="number" id="form-servings" min="0"
+                class="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500">
+            </div>
+          </div>
+
+          <!-- Excerpt -->
+          <div class="mb-6">
+            <label class="block text-sm font-medium text-stone-700 mb-1">Résumé</label>
+            <textarea id="form-excerpt" rows="2"
+              class="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"></textarea>
+          </div>
+
+          <!-- Ingredients -->
+          <div class="mb-6">
+            <label class="block text-sm font-medium text-stone-700 mb-1">Ingrédients</label>
+            <div id="ingredients-list" class="space-y-2 mb-2"></div>
+            <button type="button" onclick="addIngredient()"
+              class="text-amber-600 hover:text-amber-800 text-sm font-medium">+ Ajouter un ingrédient</button>
+          </div>
+
+          <!-- Ingredients 2 (hidden by default, toggle like categories) -->
+          <div class="mb-6">
+            <button type="button" onclick="toggleIngredients2()" id="add-i2-btn"
+              class="text-xs text-amber-600 hover:text-amber-800 font-medium mb-2">+ 2ème liste d'ingrédients...</button>
+            <div id="ingredients2-section" class="hidden">
+              <label class="block text-sm font-medium text-stone-700 mb-1">2ème liste d'ingrédients</label>
+              <div class="mb-2">
+                <input type="text" id="form-ingredients2-title" placeholder="Titre (ex: Pour la pâte)"
+                  class="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+              </div>
+              <div id="ingredients2-list" class="space-y-2 mb-2"></div>
+              <div class="flex items-center gap-3">
+                <button type="button" onclick="addIngredient2()"
+                  class="text-amber-600 hover:text-amber-800 text-sm font-medium">+ Ajouter</button>
+                <button type="button" onclick="hideIngredients2()"
+                  class="text-xs text-stone-400 hover:text-stone-600">✕ Retirer</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Steps -->
+          <div class="mb-6">
+            <label class="block text-sm font-medium text-stone-700 mb-1">Étapes</label>
+            <div id="steps-list" class="space-y-2 mb-2"></div>
+            <button type="button" onclick="addStep()"
+              class="text-amber-600 hover:text-amber-800 text-sm font-medium">+ Ajouter une étape</button>
+          </div>
+
+          <!-- Notes -->
+          <div class="mb-6">
+            <label class="block text-sm font-medium text-stone-700 mb-1">Notes</label>
+            <textarea id="form-notes" rows="2"
+              class="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"></textarea>
+          </div>
+
+          <!-- Actions -->
+          <div class="flex items-center gap-4 pt-4 border-t border-stone-200">
+            <button type="submit"
+              class="bg-amber-600 hover:bg-amber-700 text-white px-6 py-2 rounded-lg font-medium">
+              💾 Sauvegarder
+            </button>
+            <button type="button" onclick="cancelEdit()"
+              class="text-stone-500 hover:text-stone-700 px-4 py-2">
+              Annuler
+            </button>
+            <button type="button" id="delete-btn" onclick="deleteRecipe()" class="hidden ml-auto text-red-500 hover:text-red-700 px-4 py-2 text-sm">
+              🗑 Supprimer
+            </button>
+          </div>
+            </div><!-- /form fields -->
+          </div><!-- /flex layout -->
+        </form>
+      </div>
+    </main>
   </div>
-</div>
-`;
-    });
-    container.innerHTML = html;
-  }
-}
 
-// Watch form inputs for changes
-setupDirtyWatchers();
+  <script>
+    let allRecipes = [];
+    let activeSlug = null;
+    let categories = new Map(); // key -> label
 
+    // --- API ---
+    async function fetchRecipes() {
+      const res = await fetch('/api/recipes');
+      const data = await res.json();
+      allRecipes = data.recipes || [];
+
+      // Build categories map from existing recipes
+      categories.clear();
+      allRecipes.forEach(r => {
+        if (r.category) {
+          const label = r.category.charAt(0).toUpperCase() + r.category.slice(1);
+          categories.set(r.category, label);
+        }
+      });
+
+      renderTree();
+    }
+
+    async function fetchRecipe(slug) {
+      const res = await fetch(`/api/recipes/${slug}`);
+      if (!res.ok) return null;
+      return res.json();
+    }
+
+    async function saveRecipe(e) {
+      e.preventDefault();
+      const originalSlug = document.getElementById('form-slug').value;
+      const customSlug = document.getElementById('form-slug-edit').value.trim();
+      const catKey = document.getElementById('form-category').value;
+      const catLabel = categories.get(catKey) || catKey.charAt(0).toUpperCase() + catKey.slice(1);
+
+      const data = {
+        title: document.getElementById('form-title').value,
+        category: catKey,
+        excerpt: document.getElementById('form-excerpt').value || null,
+        prep_time: intVal('form-prepTime'),
+        cook_time: intVal('form-cookTime'),
+        servings: intVal('form-servings'),
+        difficulty: document.getElementById('form-difficulty').value || null,
+        ingredients: collectIngredients(),
+        ingredients2_title: document.getElementById('form-ingredients2-title').value || null,
+        ingredients2: collectIngredients2(),
+        notes: document.getElementById('form-notes').value || null,
+        steps: collectSteps(),
+      };
+
+      // If editing and slug changed, we need to delete old + create new
+      if (originalSlug && customSlug && customSlug !== originalSlug) {
+        // Delete old, then create with new slug
+        await fetch(`/api/recipes/${originalSlug}`, { method: 'DELETE' });
+        const res = await fetch('/api/recipes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...data, slug: customSlug }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          alert('Erreur: ' + (err.error || res.statusText));
+          return;
+        }
+      } else {
+        const slug = customSlug || originalSlug;
+        const url = slug ? `/api/recipes/${slug}` : '/api/recipes';
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          alert('Erreur: ' + (err.error || res.statusText));
+          return;
+        }
+      }
+
+      await fetchRecipes();
+      cancelEdit();
+    }
+
+    async function deleteRecipe() {
+      const slug = document.getElementById('form-slug').value;
+      if (!slug) return;
+      if (!confirm('Supprimer cette recette ?')) return;
+
+      const res = await fetch(`/api/recipes/${slug}`, { method: 'DELETE' });
+      if (res.ok) {
+        await fetchRecipes();
+        cancelEdit();
+      }
+    }
+
+    // --- Tree view ---
+    function renderTree() {
+      const search = document.getElementById('search').value.toLowerCase();
+      const filtered = allRecipes.filter(r =>
+        r.title.toLowerCase().includes(search) ||
+        r.category.toLowerCase().includes(search)
+      );
+
+      // Group by NORMALIZED key (lowercase, trim trailing s) to detect non-standard categories
+      const normalized = new Map(); // normalizedKey -> { keys: Set, label, recipes: [] }
+      filtered.forEach(r => {
+        const rawKey = r.category || 'autres';
+        const catLabel = r.category || 'Autres';
+        const normKey = rawKey.toLowerCase().replace(/s$/, '');
+
+        if (!normalized.has(normKey)) {
+          normalized.set(normKey, { keys: new Set(), label: catLabel, recipes: [] });
+        }
+        const group = normalized.get(normKey);
+        group.keys.add(rawKey);
+        group.recipes.push(r);
+        // Use the most common label
+        if (!group.label || group.label === rawKey) group.label = catLabel;
+      });
+
+      // Sort categories alphabetically, recipes by title
+      const sortedCats = [...normalized.entries()].sort((a, b) => a[1].label.localeCompare(b[1].label, 'fr'));
+      sortedCats.forEach(([_, data]) => {
+        data.recipes.sort((a, b) => a.title.localeCompare(b.title, 'fr'));
+      });
+
+      const container = document.getElementById('recipe-tree');
+      const total = allRecipes.length;
+
+      let html = `
+        <div class="tree-toggle flex items-center justify-between px-4 py-2 border-b border-stone-100" onclick="toggleTreeAll()">
+          <span class="text-xs font-medium text-stone-500 uppercase tracking-wider">Toutes les recettes</span>
+          <span class="text-xs text-stone-400">${total}</span>
+        </div>
+      `;
+
+      sortedCats.forEach(([normKey, data]) => {
+        const recipes = data.recipes;
+        const cat = data.label;
+        const catId = `cat-${normKey.replace(/[^a-z0-9]/gi, '-')}`;
+        const hasMultipleKeys = data.keys.size > 1;
+        const keyList = [...data.keys].join(', ');
+
+        html += `
+          <div>
+            <div class="tree-toggle flex items-center justify-between px-4 py-2 border-b border-stone-50"
+                 onclick="toggleTree('${catId}')" title="${hasMultipleKeys ? 'Clés: ' + esc(keyList) : ''}">
+              <div class="flex items-center gap-2">
+                <span class="chevron" id="chevron-${catId}">▼</span>
+                <span class="text-sm font-medium text-stone-700">${esc(cat)}</span>
+                ${hasMultipleKeys ? '<span class="text-xs text-amber-500" title="Catégories non-normalisées: ' + esc(keyList) + '">⚠️</span>' : ''}
+              </div>
+              <span class="text-xs text-stone-400">${recipes.length}</span>
+            </div>
+            <div class="tree-children" id="children-${catId}">
+              ${recipes.map(r => `
+                <button onclick="editRecipe('${r.slug}')"
+                  class="tree-recipe w-full text-left pl-10 pr-4 py-2 border-b border-stone-50 transition-colors ${r.slug === activeSlug ? 'active' : ''}">
+                  <div class="text-sm text-stone-800">${esc(r.title)}</div>
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+      updateCategoryDropdown();
+    }
+
+    function toggleTree(catId) {
+      const children = document.getElementById(`children-${catId}`);
+      const chevron = document.getElementById(`chevron-${catId}`);
+      if (children && chevron) {
+        children.classList.toggle('collapsed');
+        chevron.classList.toggle('collapsed');
+      }
+    }
+
+    function toggleTreeAll() {
+      const allChildren = document.querySelectorAll('.tree-children');
+      const allChevrons = document.querySelectorAll('.chevron');
+      const allCollapsed = [...allChildren].every(c => c.classList.contains('collapsed'));
+
+      allChildren.forEach(c => c.classList.toggle('collapsed', !allCollapsed));
+      allChevrons.forEach(c => c.classList.toggle('collapsed', !allCollapsed));
+    }
+
+    function filterRecipes() { renderTree(); }
+
+    // --- Category dropdown ---
+    function updateCategoryDropdown() {
+      const select = document.getElementById('form-category');
+      const currentVal = select.value;
+      select.innerHTML = '';
+
+      // Add existing categories
+      const sorted = [...categories.entries()].sort((a, b) => a[1].localeCompare(b[1], 'fr'));
+      sorted.forEach(([key, label]) => {
+        const opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = label;
+        select.appendChild(opt);
+      });
+
+      // Restore selection
+      if (currentVal && [...categories.keys()].includes(currentVal)) {
+        select.value = currentVal;
+      }
+    }
+
+    function showAddCategory() {
+      document.getElementById('new-category-row').classList.remove('hidden');
+      document.getElementById('add-cat-btn').classList.add('hidden');
+      document.getElementById('form-new-category').focus();
+    }
+
+    function hideAddCategory() {
+      document.getElementById('new-category-row').classList.add('hidden');
+      document.getElementById('add-cat-btn').classList.remove('hidden');
+      document.getElementById('form-new-category').value = '';
+      document.getElementById('form-new-category-label').value = '';
+    }
+
+    function confirmNewCategory() {
+      const key = document.getElementById('form-new-category').value.trim().toLowerCase()
+        .replace(/[^a-z0-9àâäéèêëîïôöùûüç\s-]/gi, '')
+        .replace(/\s+/g, '-');
+      const label = document.getElementById('form-new-category-label').value.trim()
+        || key.charAt(0).toUpperCase() + key.slice(1);
+
+      if (!key) return;
+
+      categories.set(key, label);
+      updateCategoryDropdown();
+      document.getElementById('form-category').value = key;
+      hideAddCategory();
+    }
+
+    // --- Form ---
+    function showNewRecipe() {
+      activeSlug = null;
+      document.getElementById('form-slug').value = '';
+      document.getElementById('form-slug-edit').value = '';
+      document.getElementById('recipe-form').reset();
+      document.getElementById('ingredients-list').innerHTML = '';
+      addIngredient(); // Start with one empty line
+      document.getElementById('ingredients2-list').innerHTML = '';
+      document.getElementById('form-ingredients2-title').value = '';
+      document.getElementById('ingredients2-section').classList.add('hidden');
+      document.getElementById('add-i2-btn').classList.remove('hidden');
+      document.getElementById('steps-list').innerHTML = '';
+      addStep(); // Start with one empty line
+      document.getElementById('delete-btn').classList.add('hidden');
+      hideAddCategory();
+      // Reset manuscript
+      document.getElementById('manuscript-img').classList.add('hidden');
+      document.getElementById('manuscript-placeholder').classList.remove('hidden');
+      showForm();
+      renderTree(); // refresh active state
+    }
+
+    async function editRecipe(slug) {
+      const recipe = await fetchRecipe(slug);
+      if (!recipe) return;
+
+      activeSlug = slug;
+      document.getElementById('form-slug').value = recipe.slug;
+      document.getElementById('form-slug-edit').value = recipe.slug || '';
+      document.getElementById('form-title').value = recipe.title || '';
+      document.getElementById('form-category').value = recipe.category || 'desserts';
+      document.getElementById('form-difficulty').value = recipe.difficulty || '';
+      document.getElementById('form-prepTime').value = recipe.prepTime || '';
+      document.getElementById('form-cookTime').value = recipe.cookTime || '';
+      document.getElementById('form-servings').value = recipe.servings || '';
+      document.getElementById('form-excerpt').value = recipe.excerpt || '';
+      document.getElementById('form-notes').value = recipe.notes || '';
+
+      // Ingredients
+      const ingList = document.getElementById('ingredients-list');
+      ingList.innerHTML = '';
+      (recipe.ingredients || []).forEach(ing => addIngredient(ing));
+      addIngredient(); // Always one empty line
+
+      // Ingredients 2
+      const ing2List = document.getElementById('ingredients2-list');
+      ing2List.innerHTML = '';
+      document.getElementById('form-ingredients2-title').value = recipe.ingredients2Title || '';
+      (recipe.ingredients2 || []).forEach(ing => addIngredient2(ing));
+      if (recipe.ingredients2 && recipe.ingredients2.length > 0) addIngredient2();
+
+      // Show/hide ingredients2 section based on data
+      const hasI2 = recipe.ingredients2Title || (recipe.ingredients2 && recipe.ingredients2.length > 0);
+      document.getElementById('ingredients2-section').classList.toggle('hidden', !hasI2);
+      document.getElementById('add-i2-btn').classList.toggle('hidden', hasI2);
+
+      // Manuscript image
+      loadManuscriptImage(recipe.slug);
+
+      // Steps
+      const stepList = document.getElementById('steps-list');
+      stepList.innerHTML = '';
+      (recipe.steps || []).forEach(step => addStep(step));
+      addStep(); // Always one empty line
+
+      document.getElementById('delete-btn').classList.remove('hidden');
+      hideAddCategory();
+      showForm();
+      renderTree(); // refresh active state
+    }
+
+    function showForm() {
+      document.getElementById('empty-state').classList.add('hidden');
+      document.getElementById('form-container').classList.remove('hidden');
+    }
+
+    function cancelEdit() {
+      activeSlug = null;
+      document.getElementById('empty-state').classList.remove('hidden');
+      document.getElementById('form-container').classList.add('hidden');
+      renderTree();
+    }
+
+    // --- Dynamic lists ---
+    function addIngredient(value = '') {
+      const div = document.createElement('div');
+      div.className = 'editor-line';
+      div.innerHTML = `
+        <span class="editor-bullet">•</span>
+        <input type="text" value="${esc(value)}" placeholder="200g de farine">
+        <span class="editor-delete" onclick="this.parentElement.remove()">✕</span>
+      `;
+      const input = div.querySelector('input');
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); addIngredient(); }
+      });
+      document.getElementById('ingredients-list').appendChild(div);
+      if (!value) input.focus();
+    }
+
+    function addStep(value = '') {
+      const div = document.createElement('div');
+      div.className = 'editor-line step-input';
+      const stepNum = document.querySelectorAll('.step-input').length + 1;
+      div.innerHTML = `
+        <span class="editor-number">${stepNum}.</span>
+        <input type="text" value="${esc(value)}" placeholder="Mélanger le tout...">
+        <span class="editor-delete" onclick="this.parentElement.remove()">✕</span>
+      `;
+      const input = div.querySelector('input');
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); addStep(); }
+      });
+      document.getElementById('steps-list').appendChild(div);
+      if (!value) input.focus();
+    }
+
+    function collectIngredients() {
+      return [...document.querySelectorAll('#ingredients-list input')].map(i => i.value).filter(v => v.trim());
+    }
+
+    function addIngredient2(value = '') {
+      const div = document.createElement('div');
+      div.className = 'editor-line';
+      div.innerHTML = `
+        <span class="editor-bullet">•</span>
+        <input type="text" value="${esc(value)}" placeholder="250g de farine...">
+        <span class="editor-delete" onclick="this.parentElement.remove()">✕</span>
+      `;
+      const input = div.querySelector('input');
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); addIngredient2(); }
+      });
+      document.getElementById('ingredients2-list').appendChild(div);
+      if (!value) input.focus();
+    }
+
+    function collectIngredients2() {
+      const items = [...document.querySelectorAll('#ingredients2-list input')].map(i => i.value).filter(v => v.trim());
+      return items.length > 0 ? items : null;
+    }
+
+    function collectSteps() {
+      return [...document.querySelectorAll('#steps-list input')].map(i => i.value).filter(v => v.trim());
+    }
+
+    // --- Helpers ---
+    function intVal(id) {
+      const v = document.getElementById(id).value;
+      return v ? parseInt(v) : null;
+    }
+
+    function esc(s) {
+      if (!s) return '';
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    // --- Ingredients 2 toggle ---
+    function toggleIngredients2() {
+      document.getElementById('ingredients2-section').classList.remove('hidden');
+      document.getElementById('add-i2-btn').classList.add('hidden');
+      document.getElementById('form-ingredients2-title').focus();
+    }
+
+    function hideIngredients2() {
+      document.getElementById('ingredients2-section').classList.add('hidden');
+      document.getElementById('add-i2-btn').classList.remove('hidden');
+      document.getElementById('ingredients2-list').innerHTML = '';
+      document.getElementById('form-ingredients2-title').value = '';
+    }
+
+    // --- Manuscript image ---
+    let ocrAvailable = false;
+
+    function switchImageTab(tab) {
+      document.getElementById('tab-image').classList.toggle('active', tab === 'image');
+      document.getElementById('tab-ocr-tab').classList.toggle('active', tab === 'ocr');
+      document.getElementById('image-panel').classList.toggle('hidden', tab !== 'image');
+      document.getElementById('ocr-panel').classList.toggle('hidden', tab !== 'ocr');
+    }
+
+    function loadManuscriptImage(slug) {
+      const img = document.getElementById('manuscript-img');
+      const placeholder = document.getElementById('manuscript-placeholder');
+
+      // Try loading image — slug may match a file in img/
+      img.src = `/api/images/${slug}`;
+      img.onload = () => {
+        img.classList.remove('hidden');
+        placeholder.classList.add('hidden');
+        // Show OCR button if available (it's in the OCR tab)
+        if (ocrAvailable) document.getElementById('ocr-btn').classList.remove('hidden');
+      };
+      img.onerror = () => {
+        img.classList.add('hidden');
+        placeholder.classList.remove('hidden');
+        document.getElementById('ocr-btn').classList.add('hidden');
+      };
+    }
+
+    async function runOcr() {
+      const slug = document.getElementById('form-slug').value || document.getElementById('form-slug-edit').value;
+      if (!slug) return;
+
+      const btn = document.getElementById('ocr-btn');
+      const result = document.getElementById('ocr-result');
+      const textEl = document.getElementById('ocr-text');
+      const placeholderEl = document.getElementById('ocr-placeholder');
+
+      btn.textContent = '⏳ Analyse en cours...';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch(`/api/ocr/${slug}`, { method: 'POST' });
+        const data = await res.json();
+
+        if (!res.ok) {
+          alert('OCR erreur: ' + (data.error || 'Unknown error'));
+          return;
+        }
+
+        textEl.textContent = data.text || '(aucun texte détecté)';
+        result.classList.remove('hidden');
+        placeholderEl.classList.add('hidden');
+        document.getElementById('ocr-tab-badge').classList.remove('hidden');
+      } catch (e) {
+        alert('OCR erreur: ' + e.message);
+      } finally {
+        btn.textContent = '🔍 Relancer la transcription';
+        btn.disabled = false;
+      }
+    }
+
+    function copyOcrResult() {
+      const text = document.getElementById('ocr-text').textContent;
+      navigator.clipboard.writeText(text);
+    }
+
+    function closeOcrResult() {
+      document.getElementById('ocr-result').classList.add('hidden');
+    }
+
+    // --- Orphan images ---
+    let orphanImages = [];
+
+    async function fetchOrphanImages() {
+      try {
+        const res = await fetch('/api/orphan-images');
+        const data = await res.json();
+        orphanImages = data.orphanImages || [];
+      } catch (e) {
+        orphanImages = [];
+      }
+      updateOrphanBadge();
+      renderOrphanTree();
+    }
+
+    function updateOrphanBadge() {
+      const badge = document.getElementById('orphan-count');
+      if (orphanImages.length > 0) {
+        badge.textContent = orphanImages.length;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    }
+
+    function renderOrphanTree() {
+      const container = document.getElementById('orphan-tree');
+      if (orphanImages.length === 0) {
+        container.innerHTML = `
+          <div class="flex flex-col items-center justify-center h-full text-stone-400 p-4">
+            <span class="text-2xl mb-2">📷</span>
+            <p class="text-sm text-center">Toutes les images sont associées à une recette</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = `
+        <div class="p-3 space-y-3">
+          <p class="text-xs text-stone-400 px-1">Images sans recette — cliquer pour créer</p>
+          ${orphanImages.map(img => `
+            <div class="orphan-card bg-white border border-stone-200" onclick="newRecipeFromImage('${esc(img.slug)}')">
+              <img src="/api/images/${esc(img.slug)}" alt="${esc(img.slug)}" class="w-full aspect-[3/4] object-cover" />
+              <div class="px-3 py-2 text-sm font-mono text-stone-600">${esc(img.slug)}</div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    function newRecipeFromImage(slug) {
+      showNewRecipe();
+      document.getElementById('form-slug-edit').value = slug;
+      loadManuscriptImage(slug);
+    }
+
+    // --- Tabs ---
+    let currentTab = 'recipes';
+
+    function switchTab(tab) {
+      currentTab = tab;
+      document.getElementById('tab-recipes').classList.toggle('active', tab === 'recipes');
+      document.getElementById('tab-orphans').classList.toggle('active', tab === 'orphans');
+      document.getElementById('recipe-tree').classList.toggle('hidden', tab !== 'recipes');
+      document.getElementById('orphan-tree').classList.toggle('hidden', tab !== 'orphans');
+
+      if (tab === 'orphans' && orphanImages.length === 0) {
+        // Already fetched, render
+        renderOrphanTree();
+      }
+    }
+
+    // --- Git push ---
+    async function checkGitStatus() {
+      try {
+        const res = await fetch('/api/git-status');
+        const data = await res.json();
+        const btn = document.getElementById('git-push-btn');
+        const count = document.getElementById('git-count');
+        if (data.error) return;
+        if (data.changes > 0) {
+          count.textContent = data.changes;
+          btn.classList.remove('hidden');
+        } else {
+          btn.classList.add('hidden');
+        }
+      } catch (e) {}
+    }
+
+    async function gitPush() {
+      const btn = document.getElementById('git-push-btn');
+      const count = document.getElementById('git-count');
+      btn.disabled = true;
+      btn.innerHTML = '⏳ Envoi...';
+
+      try {
+        const res = await fetch('/api/git-push', { method: 'POST' });
+        const data = await res.json();
+        if (data.ok) {
+          btn.innerHTML = '✅ ' + (data.message || 'OK');
+          setTimeout(() => checkGitStatus(), 1500);
+        } else {
+          alert('Erreur: ' + (data.error || 'Unknown error'));
+          btn.innerHTML = '📤 <span id="git-count">' + count.textContent + '</span> fichier(s)';
+        }
+      } catch (e) {
+        alert('Erreur: ' + e.message);
+        btn.innerHTML = '📤 <span id="git-count">?</span> fichier(s)';
+      }
+      btn.disabled = false;
+    }
+
+    // --- Init ---
+    fetchRecipes();
+    fetchOrphanImages();
+    initSiteLink();
+    checkOcrStatus();
+    checkGitStatus();
+    // Poll git status every 30s
+    setInterval(checkGitStatus, 30000);
+
+    async function checkOcrStatus() {
+      try {
+        const res = await fetch('/api/ocr-status');
+        const data = await res.json();
+        ocrAvailable = data.available === true;
+        // If image already loaded and OCR available, show button
+        if (ocrAvailable && !document.getElementById('manuscript-img').classList.contains('hidden')) {
+          document.getElementById('ocr-btn').classList.remove('hidden');
+        }
+      } catch (e) {}
+    }
+
+    async function initSiteLink() {
+      try {
+        const res = await fetch('/api/site-url');
+        const data = await res.json();
+        if (data.siteUrl) {
+          const link = document.getElementById('site-link');
+          link.href = data.siteUrl;
+          link.classList.remove('hidden');
+        }
+      } catch (e) {}
+    }
+  </script>
+</body>
+</html>
