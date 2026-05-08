@@ -48,16 +48,36 @@
       <div id="empty-state" class="flex items-center justify-center h-full text-stone-400">
         <p>Sélectionnez ou créez une recette</p>
       </div>
-      <div id="form-container" class="hidden max-w-2xl mx-auto p-8">
+      <div id="form-container" class="hidden">
         <form id="recipe-form" onsubmit="saveRecipe(event)">
           <input type="hidden" id="form-slug">
 
-          <!-- Title -->
-          <div class="mb-6">
-            <label class="block text-sm font-medium text-stone-700 mb-1">Titre *</label>
-            <input type="text" id="form-title" required
-              class="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500">
-          </div>
+          <div class="flex gap-8 p-8 max-w-5xl mx-auto">
+            <!-- Left: Manuscript image -->
+            <div class="w-64 shrink-0">
+              <div id="manuscript-preview" class="sticky top-8">
+                <div id="manuscript-placeholder" class="aspect-[3/4] bg-stone-100 rounded-xl border-2 border-dashed border-stone-300 flex items-center justify-center">
+                  <span class="text-stone-400 text-sm">Pas d'image</span>
+                </div>
+                <img id="manuscript-img" class="hidden w-full rounded-xl shadow-lg" alt="Manuscrit" />
+              </div>
+            </div>
+
+            <!-- Right: Form fields -->
+            <div class="flex-1 min-w-0">
+              <!-- Title + Slug inline -->
+              <div class="mb-6">
+                <label class="block text-sm font-medium text-stone-700 mb-1">Titre *</label>
+                <input type="text" id="form-title" required
+                  class="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500">
+                <div class="mt-1.5 flex items-center gap-2">
+                  <label class="text-xs text-stone-400">Slug:</label>
+                  <input type="text" id="form-slug-edit"
+                    class="flex-1 px-2 py-1 border border-stone-200 rounded text-xs font-mono text-stone-500 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-stone-50"
+                    placeholder="auto-généré depuis le titre">
+                  <span class="text-xs text-stone-400">.md</span>
+                </div>
+              </div>
 
           <!-- Category + Difficulty row -->
           <div class="grid grid-cols-2 gap-4 mb-6">
@@ -127,17 +147,24 @@
               class="text-amber-600 hover:text-amber-800 text-sm font-medium">+ Ajouter un ingrédient</button>
           </div>
 
-          <!-- Ingredients 2 (optional second list) -->
+          <!-- Ingredients 2 (hidden by default, toggle like categories) -->
           <div class="mb-6">
-            <label class="block text-sm font-medium text-stone-700 mb-1">Ingrédients (2ème liste) <span class="text-stone-400 font-normal">— optionnel</span></label>
-            <p class="text-xs text-stone-400 mb-2">Pour les recettes en deux parties (ex: pâte + garniture). Laissez vide si une seule liste suffit.</p>
-            <div class="mb-2">
-              <input type="text" id="form-ingredients2-title" placeholder="Titre (ex: Pour la pâte)"
-                class="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+            <button type="button" onclick="toggleIngredients2()" id="add-i2-btn"
+              class="text-xs text-amber-600 hover:text-amber-800 font-medium mb-2">+ 2ème liste d'ingrédients...</button>
+            <div id="ingredients2-section" class="hidden">
+              <label class="block text-sm font-medium text-stone-700 mb-1">2ème liste d'ingrédients</label>
+              <div class="mb-2">
+                <input type="text" id="form-ingredients2-title" placeholder="Titre (ex: Pour la pâte)"
+                  class="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+              </div>
+              <div id="ingredients2-list" class="space-y-2 mb-2"></div>
+              <div class="flex items-center gap-3">
+                <button type="button" onclick="addIngredient2()"
+                  class="text-amber-600 hover:text-amber-800 text-sm font-medium">+ Ajouter</button>
+                <button type="button" onclick="hideIngredients2()"
+                  class="text-xs text-stone-400 hover:text-stone-600">✕ Retirer</button>
+              </div>
             </div>
-            <div id="ingredients2-list" class="space-y-2 mb-2"></div>
-            <button type="button" onclick="addIngredient2()"
-              class="text-amber-600 hover:text-amber-800 text-sm font-medium">+ Ajouter un ingrédient</button>
           </div>
 
           <!-- Steps -->
@@ -146,18 +173,6 @@
             <div id="steps-list" class="step-list space-y-2 mb-2"></div>
             <button type="button" onclick="addStep()"
               class="text-amber-600 hover:text-amber-800 text-sm font-medium">+ Ajouter une étape</button>
-          </div>
-
-          <!-- Slug (filename) -->
-          <div class="mb-6">
-            <label class="block text-sm font-medium text-stone-700 mb-1">Slug (nom du fichier)</label>
-            <div class="flex items-center gap-2">
-              <input type="text" id="form-slug-edit"
-                class="flex-1 px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono text-sm"
-                placeholder="Ex: FGo03-01 ou gateau-orange">
-              <span class="text-xs text-stone-400">.md</span>
-            </div>
-            <p class="text-xs text-stone-400 mt-1">Laissez vide pour auto-générer depuis le titre. C'est le nom du fichier sur disque.</p>
           </div>
 
           <!-- Notes -->
@@ -181,6 +196,8 @@
               🗑 Supprimer
             </button>
           </div>
+            </div><!-- /form fields -->
+          </div><!-- /flex layout -->
         </form>
       </div>
     </main>
@@ -428,9 +445,14 @@
       document.getElementById('ingredients-list').innerHTML = '';
       document.getElementById('ingredients2-list').innerHTML = '';
       document.getElementById('form-ingredients2-title').value = '';
+      document.getElementById('ingredients2-section').classList.add('hidden');
+      document.getElementById('add-i2-btn').classList.remove('hidden');
       document.getElementById('steps-list').innerHTML = '';
       document.getElementById('delete-btn').classList.add('hidden');
       hideAddCategory();
+      // Reset manuscript
+      document.getElementById('manuscript-img').classList.add('hidden');
+      document.getElementById('manuscript-placeholder').classList.remove('hidden');
       showForm();
       renderTree(); // refresh active state
     }
@@ -461,6 +483,14 @@
       ing2List.innerHTML = '';
       document.getElementById('form-ingredients2-title').value = recipe.ingredients2Title || '';
       (recipe.ingredients2 || []).forEach(ing => addIngredient2(ing));
+
+      // Show/hide ingredients2 section based on data
+      const hasI2 = recipe.ingredients2Title || (recipe.ingredients2 && recipe.ingredients2.length > 0);
+      document.getElementById('ingredients2-section').classList.toggle('hidden', !hasI2);
+      document.getElementById('add-i2-btn').classList.toggle('hidden', hasI2);
+
+      // Manuscript image
+      loadManuscriptImage(recipe.slug);
 
       // Steps
       const stepList = document.getElementById('steps-list');
@@ -561,6 +591,37 @@
       const d = document.createElement('div');
       d.textContent = s;
       return d.innerHTML;
+    }
+
+    // --- Ingredients 2 toggle ---
+    function toggleIngredients2() {
+      document.getElementById('ingredients2-section').classList.remove('hidden');
+      document.getElementById('add-i2-btn').classList.add('hidden');
+      document.getElementById('form-ingredients2-title').focus();
+    }
+
+    function hideIngredients2() {
+      document.getElementById('ingredients2-section').classList.add('hidden');
+      document.getElementById('add-i2-btn').classList.remove('hidden');
+      document.getElementById('ingredients2-list').innerHTML = '';
+      document.getElementById('form-ingredients2-title').value = '';
+    }
+
+    // --- Manuscript image ---
+    function loadManuscriptImage(slug) {
+      const img = document.getElementById('manuscript-img');
+      const placeholder = document.getElementById('manuscript-placeholder');
+
+      // Try loading image — slug may match a file in img/
+      img.src = `/api/images/${slug}`;
+      img.onload = () => {
+        img.classList.remove('hidden');
+        placeholder.classList.add('hidden');
+      };
+      img.onerror = () => {
+        img.classList.add('hidden');
+        placeholder.classList.remove('hidden');
+      };
     }
 
     // --- Init ---

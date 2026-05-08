@@ -1,6 +1,7 @@
+use axum::body::Body;
 use axum::extract::{Path, State};
-use axum::http::StatusCode;
-use axum::response::{Html, Json};
+use axum::http::{StatusCode, header};
+use axum::response::{Html, IntoResponse, Json};
 use axum::routing::{delete, get, post};
 use axum::Router;
 use serde_json::{json, Value};
@@ -14,6 +15,15 @@ pub struct AppState {
     pub recipes_dir: PathBuf,
 }
 
+impl AppState {
+    /// Image directory: sibling `img/` folder next to the recettes folder
+    pub fn img_dir(&self) -> PathBuf {
+        self.recipes_dir.parent()
+            .map(|p| p.join("img"))
+            .unwrap_or_else(|| self.recipes_dir.join("../img"))
+    }
+}
+
 pub fn router(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/", get(index))
@@ -22,6 +32,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/recipes", post(create_recipe))
         .route("/api/recipes/{slug}", post(update_recipe))
         .route("/api/recipes/{slug}", delete(delete_recipe))
+        .route("/api/images/{slug}", get(get_image))
         .with_state(state)
 }
 
@@ -101,6 +112,31 @@ async fn delete_recipe(
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
     Ok(Json(json!({ "deleted": slug })))
+}
+
+async fn get_image(
+    State(state): State<Arc<AppState>>,
+    Path(slug): Path<String>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let img_dir = state.img_dir();
+
+    // Try common extensions: jpg, jpeg, png, webp
+    for ext in &["jpg", "jpeg", "png", "webp"] {
+        let path = img_dir.join(format!("{}.{}", slug, ext));
+        if path.exists() {
+            let bytes = std::fs::read(&path).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            let mime = match *ext {
+                "png" => "image/png",
+                "webp" => "image/webp",
+                _ => "image/jpeg",
+            };
+            return Ok((
+                [(header::CONTENT_TYPE, mime)],
+                Body::from(bytes),
+            ));
+        }
+    }
+    Err(StatusCode::NOT_FOUND)
 }
 
 fn recipe_to_json(recipe: &Recipe) -> Value {
