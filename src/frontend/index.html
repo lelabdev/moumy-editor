@@ -284,7 +284,9 @@
           <div class="mb-6">
             <label class="block text-sm font-medium text-stone-700 mb-1">Ingrédients</label>
             <div id="ingredients-list" class="space-y-2 mb-2"></div>
-            <button type="button" onclick="addIngredient()"
+            <textarea id="ingredients-raw" rows="8" placeholder="Un ingrédient par ligne&#10;200g de farine&#10;3 oeufs&#10;100g de sucre"
+              class="hidden w-full px-3 py-2 border border-stone-300 rounded-lg font-sans text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"></textarea>
+            <button type="button" onclick="addIngredient()" id="add-ingredient-btn"
               class="text-amber-600 hover:text-amber-800 text-sm font-medium">+ Ajouter un ingrédient</button>
           </div>
 
@@ -312,7 +314,9 @@
           <div class="mb-6">
             <label class="block text-sm font-medium text-stone-700 mb-1">Étapes</label>
             <div id="steps-list" class="space-y-2 mb-2"></div>
-            <button type="button" onclick="addStep()"
+            <textarea id="steps-raw" rows="8" placeholder="Une étape par ligne&#10;1. Mélanger la farine et le sucre&#10;2. Ajouter les oeufs un par un"
+              class="hidden w-full px-3 py-2 border border-stone-300 rounded-lg font-sans text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"></textarea>
+            <button type="button" onclick="addStep()" id="add-step-btn"
               class="text-amber-600 hover:text-amber-800 text-sm font-medium">+ Ajouter une étape</button>
           </div>
 
@@ -599,15 +603,17 @@
       document.getElementById('form-slug-edit').value = '';
       document.getElementById('recipe-form').reset();
       document.getElementById('ingredients-list').innerHTML = '';
-      addIngredient(); // Start with one empty line
+      document.getElementById('ingredients-raw').value = '';
       document.getElementById('ingredients2-list').innerHTML = '';
       document.getElementById('form-ingredients2-title').value = '';
       document.getElementById('ingredients2-section').classList.add('hidden');
       document.getElementById('add-i2-btn').classList.remove('hidden');
       document.getElementById('steps-list').innerHTML = '';
-      addStep(); // Start with one empty line
+      document.getElementById('steps-raw').value = '';
       document.getElementById('delete-btn').classList.add('hidden');
       hideAddCategory();
+      // Use raw textarea mode for new recipes
+      setListMode('raw');
       // Reset manuscript
       document.getElementById('manuscript-img').classList.add('hidden');
       document.getElementById('manuscript-placeholder').classList.remove('hidden');
@@ -660,6 +666,7 @@
 
       document.getElementById('delete-btn').classList.remove('hidden');
       hideAddCategory();
+      setListMode('editor'); // existing recipes use editor mode
       showForm();
       renderTree(); // refresh active state
       storeSnapshot(); // snapshot for dirty tracking
@@ -711,7 +718,28 @@
       if (!value) input.focus();
     }
 
+    // --- List mode (editor vs raw textarea) ---
+    let listMode = 'editor'; // 'editor' = input lines, 'raw' = textarea
+
+    function setListMode(mode) {
+      listMode = mode;
+      const isRaw = mode === 'raw';
+
+      // Ingredients
+      document.getElementById('ingredients-list').classList.toggle('hidden', isRaw);
+      document.getElementById('ingredients-raw').classList.toggle('hidden', !isRaw);
+      document.getElementById('add-ingredient-btn').classList.toggle('hidden', isRaw);
+
+      // Steps
+      document.getElementById('steps-list').classList.toggle('hidden', isRaw);
+      document.getElementById('steps-raw').classList.toggle('hidden', !isRaw);
+      document.getElementById('add-step-btn').classList.toggle('hidden', isRaw);
+    }
+
     function collectIngredients() {
+      if (listMode === 'raw') {
+        return document.getElementById('ingredients-raw').value.split('\n').filter(v => v.trim());
+      }
       return [...document.querySelectorAll('#ingredients-list input')].map(i => i.value).filter(v => v.trim());
     }
 
@@ -737,6 +765,9 @@
     }
 
     function collectSteps() {
+      if (listMode === 'raw') {
+        return document.getElementById('steps-raw').value.split('\n').filter(v => v.trim());
+      }
       return [...document.querySelectorAll('#steps-list input')].map(i => i.value).filter(v => v.trim());
     }
 
