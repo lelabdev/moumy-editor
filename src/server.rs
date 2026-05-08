@@ -206,10 +206,22 @@ async fn git_status() -> Json<Value> {
     match output {
         Ok(out) => {
             let stdout = String::from_utf8_lossy(&out.stdout);
-            let count = stdout.lines().filter(|l| !l.trim().is_empty()).count();
-            Json(json!({ "changes": count }))
+            let lines: Vec<&str> = stdout.lines().filter(|l| !l.trim().is_empty()).collect();
+            let count = lines.len();
+
+            // Extract dirty slugs from file paths like "M  src/data/recettes/crepes.md"
+            let dirty_slugs: Vec<String> = lines.iter()
+                .filter_map(|line| {
+                    let path = line.trim_start_matches(|c: char| c.is_uppercase() || c == ' ' || c == '?');
+                    path.strip_prefix("src/data/recettes/")
+                        .and_then(|f| f.strip_suffix(".md"))
+                        .map(|s| s.to_string())
+                })
+                .collect();
+
+            Json(json!({ "changes": count, "dirtySlugs": dirty_slugs }))
         }
-        Err(e) => Json(json!({ "changes": 0, "error": e.to_string() }))
+        Err(e) => Json(json!({ "changes": 0, "dirtySlugs": [], "error": e.to_string() }))
     }
 }
 

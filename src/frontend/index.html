@@ -501,7 +501,10 @@
               ${recipes.map(r => `
                 <button onclick="editRecipe('${r.slug}')"
                   class="tree-recipe w-full text-left pl-10 pr-4 py-2 border-b border-stone-50 transition-colors ${r.slug === activeSlug ? 'active' : ''}">
-                  <div class="text-sm text-stone-800">${esc(r.title)}</div>
+                  <div class="flex items-center gap-1.5">
+                    ${dirtySlugs.has(r.slug) ? '<span class="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" title="Non poussé sur GitHub"></span>' : ''}
+                    <span class="text-sm text-stone-800">${esc(r.title)}</span>
+                  </div>
                 </button>
               `).join('')}
             </div>
@@ -902,6 +905,8 @@
     }
 
     // --- Git push ---
+    let dirtySlugs = new Set();
+
     async function checkGitStatus() {
       try {
         const res = await fetch('/api/git-status');
@@ -909,12 +914,19 @@
         const btn = document.getElementById('git-push-btn');
         const count = document.getElementById('git-count');
         if (data.error) return;
+
+        // Update dirty slugs
+        dirtySlugs = new Set(data.dirtySlugs || []);
+
         if (data.changes > 0) {
           count.textContent = data.changes;
           btn.classList.remove('hidden');
         } else {
           btn.classList.add('hidden');
         }
+
+        // Refresh tree to show/hide dirty indicators
+        renderTree();
       } catch (e) {}
     }
 
