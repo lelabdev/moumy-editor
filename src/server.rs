@@ -13,6 +13,7 @@ use crate::store;
 
 pub struct AppState {
     pub recipes_dir: PathBuf,
+    pub site_url: Option<String>,
 }
 
 impl AppState {
@@ -34,6 +35,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/recipes/{slug}", delete(delete_recipe))
         .route("/api/images/{slug}", get(get_image))
         .route("/api/orphan-images", get(list_orphan_images))
+        .route("/api/site-url", get(get_site_url))
         .with_state(state)
 }
 
@@ -181,6 +183,12 @@ async fn list_orphan_images(State(state): State<Arc<AppState>>) -> Json<Value> {
         .collect();
 
     Json(json!({ "orphanImages": orphans }))
+}
+
+async fn get_site_url(State(state): State<Arc<AppState>>) -> Json<Value> {
+    Json(json!({
+        "siteUrl": state.site_url,
+    }))
 }
 
 fn recipe_to_json(recipe: &Recipe) -> Value {

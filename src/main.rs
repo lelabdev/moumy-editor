@@ -32,25 +32,58 @@ async fn main() {
 
     println!("📂 Recipes directory: {}", recipes_dir.display());
 
-    let state = Arc::new(AppState { recipes_dir });
+    // Detect site project root (src/data/recettes/ -> project root) and start bun dev
+    let site_dir = recipes_dir.parent()
+        .and_then(|p| p.parent())
+        .and_then(|p| p.parent())
+        .filter(|p| p.join("package.json").exists())
+        .map(|p| p.to_path_buf());
+
+    let site_url = if let Some(ref sdir) = site_dir {
+        let port = env::var("SITE_PORT").unwrap_or_else(|_| "5173".into());
+        let site_addr = format!("http://localhost:{}", port);
+
+        match tokio::process::Command::new("bun")
+            .args(["dev", "--host", "0.0.0.0", "--port", &port])
+            .current_dir(sdir)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+        {
+            Ok(_) => {
+                println!("🍞 Site dev server started at {}", site_addr);
+                Some(site_addr)
+            }
+            Err(e) => {
+                eprintln!("⚠️  Could not start bun dev: {}", e);
+                eprintln!("   The editor works fine without it — the site preview won't be available.");
+                None
+            }
+        }
+    } else {
+        println!("ℹ️  No site project found nearby — site preview disabled");
+        None
+    };
+
+    let state = Arc::new(AppState { recipes_dir, site_url });
     let app = server::router(state);
 
     let addr = "0.0.0.0:3210";
-    let url = "http://localhost:3210";
-    println!("🧁 Moumy Editor running at {}", url);
+    let editor_url = "http://localhost:3210";
+    println!("🧁 Moumy Editor running at {}", editor_url);
 
     // Auto-open browser
     #[cfg(target_os = "linux")]
     {
-        let _ = std::process::Command::new("xdg-open").arg(url).spawn();
+        let _ = std::process::Command::new("xdg-open").arg(editor_url).spawn();
     }
     #[cfg(target_os = "macos")]
     {
-        let _ = std::process::Command::new("open").arg(url).spawn();
+        let _ = std::process::Command::new("open").arg(editor_url).spawn();
     }
     #[cfg(target_os = "windows")]
     {
-        let _ = std::process::Command::new("cmd").args(["/C", "start", url]).spawn();
+        let _ = std::process::Command::new("cmd").args(["/C", "start", editor_url]).spawn();
     }
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
