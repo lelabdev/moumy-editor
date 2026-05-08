@@ -12,12 +12,12 @@ pub struct RecipeFrontmatter {
     pub excerpt: Option<String>,
     #[serde(default)]
     #[serde(rename = "prepTime")]
-    pub prep_time: Option<u32>,
+    pub prep_time: Option<String>,
     #[serde(default)]
     #[serde(rename = "cookTime")]
-    pub cook_time: Option<u32>,
+    pub cook_time: Option<String>,
     #[serde(default)]
-    pub servings: Option<u32>,
+    pub servings: Option<String>,
     #[serde(default)]
     pub difficulty: Option<String>,
     #[serde(default)]
@@ -48,11 +48,11 @@ pub struct RecipeInput {
     #[serde(default)]
     pub excerpt: Option<String>,
     #[serde(default)]
-    pub prep_time: Option<u32>,
+    pub prep_time: Option<String>,
     #[serde(default)]
-    pub cook_time: Option<u32>,
+    pub cook_time: Option<String>,
     #[serde(default)]
-    pub servings: Option<u32>,
+    pub servings: Option<String>,
     #[serde(default)]
     pub difficulty: Option<String>,
     #[serde(default)]

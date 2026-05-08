@@ -1,7 +1,7 @@
 use std::env;
 use std::path::PathBuf;
 
-const VERSION: &str = "1.0.1";
+const VERSION: &str = "1.0.2";
 const REPO: &str = "lelabdev/moumy-editor";
 
 pub fn current_version() -> String {
