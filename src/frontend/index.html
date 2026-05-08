@@ -42,6 +42,7 @@
     }
     .editor-line input::placeholder {
       color: #a8a29e;
+      font-style: italic;
     }
     .editor-bullet {
       color: #78716c;
@@ -679,7 +680,7 @@
       div.className = 'editor-line';
       div.innerHTML = `
         <span class="editor-bullet">•</span>
-        <input type="text" value="${esc(value)}" placeholder="200g de farine">
+        <input type="text" value="${esc(value)}" placeholder="Ajouter…">
         <span class="editor-delete" onclick="this.parentElement.remove()">✕</span>
       `;
       const input = div.querySelector('input');
@@ -696,7 +697,7 @@
       const stepNum = document.querySelectorAll('.step-input').length + 1;
       div.innerHTML = `
         <span class="editor-number">${stepNum}.</span>
-        <input type="text" value="${esc(value)}" placeholder="Mélanger le tout...">
+        <input type="text" value="${esc(value)}" placeholder="Ajouter…">
         <span class="editor-delete" onclick="this.parentElement.remove()">✕</span>
       `;
       const input = div.querySelector('input');
@@ -716,7 +717,7 @@
       div.className = 'editor-line';
       div.innerHTML = `
         <span class="editor-bullet">•</span>
-        <input type="text" value="${esc(value)}" placeholder="250g de farine...">
+        <input type="text" value="${esc(value)}" placeholder="Ajouter…">
         <span class="editor-delete" onclick="this.parentElement.remove()">✕</span>
       `;
       const input = div.querySelector('input');
