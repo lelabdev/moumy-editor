@@ -166,6 +166,7 @@
       <div id="form-container" class="hidden">
         <form id="recipe-form" onsubmit="saveRecipe(event)">
           <input type="hidden" id="form-slug">
+          <input type="hidden" id="form-sourceImage">
 
           <div class="flex flex-col md:flex-row gap-6 p-6 h-full">
             <!-- Left: Manuscript image (50% on desktop) -->
@@ -403,6 +404,7 @@
         ingredients2_title: document.getElementById('form-ingredients2-title').value || null,
         ingredients2: collectIngredients2(),
         notes: document.getElementById('form-notes').value || null,
+        source_image: document.getElementById('form-sourceImage').value || null,
         steps: collectSteps(),
       };
 
@@ -643,6 +645,7 @@
       document.getElementById('form-servings').value = recipe.servings || '';
       document.getElementById('form-excerpt').value = recipe.excerpt || '';
       document.getElementById('form-notes').value = recipe.notes || '';
+      document.getElementById('form-sourceImage').value = recipe.sourceImage || '';
 
       // Ingredients
       const ingList = document.getElementById('ingredients-list');
@@ -1010,7 +1013,9 @@
 
     function selectOcrImage(slug) {
       ocrSelectedSlug = slug;
+      document.getElementById('form-sourceImage').value = slug;
       renderOcrVariants();
+      checkDirty();
     }
 
     // --- Tabs ---
@@ -1095,6 +1100,7 @@
         ingredients2Title: document.getElementById('form-ingredients2-title').value,
         ingredients2: collectIngredients2().filter(i => i.trim() !== ''),
         notes: document.getElementById('form-notes').value,
+        sourceImage: document.getElementById('form-sourceImage').value,
         steps: collectSteps().filter(s => s.trim() !== ''),
       });
     }

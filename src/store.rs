@@ -75,6 +75,7 @@ pub fn serialize_recipe(input: &RecipeInput, slug: &str) -> String {
         ingredients2_title: input.ingredients2_title.clone(),
         ingredients2: input.ingredients2.clone(),
         notes: input.notes.clone(),
+        source_image: input.source_image.clone(),
     };
 
     let mut yaml = serde_yaml::to_string(&fm).unwrap();

@@ -195,13 +195,20 @@ async fn list_orphan_images(State(state): State<Arc<AppState>>) -> Json<Value> {
         }
     }
 
-    // Collect all recipe slugs + their base slugs
+    // Collect all recipe slugs + their base slugs + sourceImage
     let recipes = store::list_recipes(&state.recipes_dir);
     let mut used_images: std::collections::HashSet<String> = std::collections::HashSet::new();
     for r in &recipes {
         used_images.insert(r.slug.clone());
         if let Some(base) = r.slug.split('_').next() {
             used_images.insert(base.to_string());
+        }
+        // Also count sourceImage as used
+        if let Some(ref src) = r.frontmatter.source_image {
+            used_images.insert(src.clone());
+            if let Some(base) = src.split('_').next() {
+                used_images.insert(base.to_string());
+            }
         }
     }
 

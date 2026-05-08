@@ -30,6 +30,9 @@ pub struct RecipeFrontmatter {
     pub ingredients2: Option<Vec<String>>,
     #[serde(default)]
     pub notes: Option<String>,
+    /// Image used for OCR transcription (may differ from slug image)
+    #[serde(default, rename = "sourceImage")]
+    pub source_image: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -67,4 +70,6 @@ pub struct RecipeInput {
     pub notes: Option<String>,
     #[serde(default)]
     pub steps: Vec<String>,
+    #[serde(default, rename = "sourceImage")]
+    pub source_image: Option<String>,
 }
