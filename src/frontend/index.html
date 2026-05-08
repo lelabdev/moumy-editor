@@ -767,7 +767,7 @@
       img.onload = () => {
         img.classList.remove('hidden');
         placeholder.classList.add('hidden');
-        // Show OCR button if available
+        // Show OCR button if available (it's in the OCR tab)
         if (ocrAvailable) document.getElementById('ocr-btn').classList.remove('hidden');
       };
       img.onerror = () => {
@@ -902,6 +902,10 @@
         const res = await fetch('/api/ocr-status');
         const data = await res.json();
         ocrAvailable = data.available === true;
+        // If image already loaded and OCR available, show button
+        if (ocrAvailable && !document.getElementById('manuscript-img').classList.contains('hidden')) {
+          document.getElementById('ocr-btn').classList.remove('hidden');
+        }
       } catch (e) {}
     }
 
