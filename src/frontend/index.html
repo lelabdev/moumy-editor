@@ -119,6 +119,9 @@
   <header class="bg-white border-b border-stone-200 px-6 py-4 flex items-center justify-between">
     <h1 class="text-xl font-bold text-stone-800">📝 Moumy — Recettes</h1>
     <div class="flex items-center gap-3">
+      <button id="git-push-btn" onclick="gitPush()" class="hidden bg-stone-100 hover:bg-amber-50 text-stone-600 hover:text-amber-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+        📤 <span id="git-count">0</span> fichier(s)
+      </button>
       <a id="site-link" href="#" target="_blank" rel="noopener"
         class="hidden bg-stone-100 hover:bg-stone-200 text-stone-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
         🌐 Voir le site
@@ -888,11 +891,54 @@
       }
     }
 
+    // --- Git push ---
+    async function checkGitStatus() {
+      try {
+        const res = await fetch('/api/git-status');
+        const data = await res.json();
+        const btn = document.getElementById('git-push-btn');
+        const count = document.getElementById('git-count');
+        if (data.error) return;
+        if (data.changes > 0) {
+          count.textContent = data.changes;
+          btn.classList.remove('hidden');
+        } else {
+          btn.classList.add('hidden');
+        }
+      } catch (e) {}
+    }
+
+    async function gitPush() {
+      const btn = document.getElementById('git-push-btn');
+      const count = document.getElementById('git-count');
+      btn.disabled = true;
+      btn.innerHTML = '⏳ Envoi...';
+
+      try {
+        const res = await fetch('/api/git-push', { method: 'POST' });
+        const data = await res.json();
+        if (data.ok) {
+          btn.innerHTML = '✅ ' + (data.message || 'OK');
+          setTimeout(() => checkGitStatus(), 1500);
+        } else {
+          alert('Erreur: ' + (data.error || 'Unknown error'));
+          btn.innerHTML = '📤 <span id="git-count">' + count.textContent + '</span> fichier(s)';
+        }
+      } catch (e) {
+        alert('Erreur: ' + e.message);
+        btn.innerHTML = '📤 <span id="git-count">?</span> fichier(s)';
+      }
+      btn.disabled = false;
+    }
+
     // --- Init ---
     fetchRecipes();
     fetchOrphanImages();
     initSiteLink();
     checkOcrStatus();
+    checkGitStatus();
+    // Poll git status every 30s
+    setInterval(checkGitStatus, 30000);
 
     async function checkOcrStatus() {
       try {

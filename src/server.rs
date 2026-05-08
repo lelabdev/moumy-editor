@@ -39,6 +39,8 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/site-url", get(get_site_url))
         .route("/api/ocr/{slug}", post(ocr_image))
         .route("/api/ocr-status", get(ocr_status))
+        .route("/api/git-status", get(git_status))
+        .route("/api/git-push", post(git_push))
         .with_state(state)
 }
 
@@ -191,6 +193,77 @@ async fn get_site_url(State(state): State<Arc<AppState>>) -> Json<Value> {
     Json(json!({
         "siteUrl": state.site_url,
     }))
+}
+
+async fn git_status() -> Json<Value> {
+    let dir = std::env::current_dir().unwrap_or_default();
+
+    let output = std::process::Command::new("git")
+        .args(["status", "--porcelain"])
+        .current_dir(&dir)
+        .output();
+
+    match output {
+        Ok(out) => {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            let count = stdout.lines().filter(|l| !l.trim().is_empty()).count();
+            Json(json!({ "changes": count }))
+        }
+        Err(e) => Json(json!({ "changes": 0, "error": e.to_string() }))
+    }
+}
+
+async fn git_push() -> Json<Value> {
+    let dir = std::env::current_dir().unwrap_or_default();
+
+    // git add -A
+    let add = std::process::Command::new("git")
+        .args(["add", "-A"])
+        .current_dir(&dir)
+        .output();
+
+    if let Err(e) = add {
+        return Json(json!({ "error": format!("git add failed: {}", e) }));
+    }
+
+    // git commit
+    let commit = std::process::Command::new("git")
+        .args(["commit", "-m", "editor: recipe changes"])
+        .current_dir(&dir)
+        .output();
+
+    let nothing_to_commit = match &commit {
+        Ok(out) => {
+            let combined = format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
+            combined.contains("nothing to commit")
+        }
+        Err(_) => false,
+    };
+
+    if let Err(e) = commit {
+        return Json(json!({ "error": format!("git commit failed: {}", e) }));
+    }
+
+    if nothing_to_commit {
+        return Json(json!({ "ok": true, "message": "Rien à pousser" }));
+    }
+
+    // git push
+    let push = std::process::Command::new("git")
+        .args(["push"])
+        .current_dir(&dir)
+        .output();
+
+    match push {
+        Ok(out) if out.status.success() => {
+            Json(json!({ "ok": true, "message": "Pushé sur GitHub ✓" }))
+        }
+        Ok(out) => {
+            let stderr = String::from_utf8_lossy(&out.stderr).to_string();
+            Json(json!({ "error": format!("push failed: {}", stderr) }))
+        }
+        Err(e) => Json(json!({ "error": format!("push failed: {}", e) }))
+    }
 }
 
 async fn ocr_status(State(state): State<Arc<AppState>>) -> Json<Value> {
