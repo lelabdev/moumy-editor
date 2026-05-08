@@ -424,6 +424,7 @@
       await fetchRecipes();
       cancelEdit();
       originalSnapshot = null; // reset dirty state after save
+      checkGitStatus(); // refresh git indicators
     }
 
     async function deleteRecipe() {
@@ -435,6 +436,7 @@
       if (res.ok) {
         await fetchRecipes();
         cancelEdit();
+        checkGitStatus(); // refresh git indicators
       }
     }
 
@@ -1003,8 +1005,6 @@
     initSiteLink();
     checkOcrStatus();
     checkGitStatus();
-    // Poll git status every 30s
-    setInterval(checkGitStatus, 30000);
 
     async function checkOcrStatus() {
       try {
