@@ -443,6 +443,7 @@ fn recipe_to_json(recipe: &Recipe) -> Value {
         "ingredients2Title": recipe.frontmatter.ingredients2_title,
         "ingredients2": recipe.frontmatter.ingredients2,
         "notes": recipe.frontmatter.notes,
+        "legende": recipe.frontmatter.legende,
         "steps": recipe.steps,
     })
 }
