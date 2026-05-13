@@ -60,29 +60,93 @@ fn parse_steps(body: &str) -> Vec<String> {
 }
 
 /// Serialize a Recipe back to a .md file string.
+/// Uses custom YAML formatting to match Obsidian's style (no serde_yaml).
 pub fn serialize_recipe(input: &RecipeInput, slug: &str) -> String {
-    let fm = RecipeFrontmatter {
-        title: input.title.clone(),
-        slug: Some(slug.to_string()),
-        manuscript: Some(String::new()),
-        category: input.category.clone(),
-        excerpt: input.excerpt.clone(),
-        prep_time: input.prep_time.clone(),
-        cook_time: input.cook_time.clone(),
-        servings: input.servings.clone(),
-        difficulty: input.difficulty.clone(),
-        ingredients: input.ingredients.clone(),
-        ingredients2_title: input.ingredients2_title.clone(),
-        ingredients2: input.ingredients2.clone(),
-        notes: input.notes.clone(),
-        legende: input.legende.clone(),
-        source_image: input.source_image.clone(),
-    };
+    let mut yaml = String::new();
 
-    let mut yaml = serde_yaml::to_string(&fm).unwrap();
-    // serde_yaml adds trailing newline, strip it for clean output
-    yaml = yaml.trim_end().to_string();
+    // title — always present, quote if it contains special YAML chars
+    yaml.push_str(&format!("title: {}\n", yaml_value(&input.title)));
+    yaml.push_str(&format!("slug: {}\n", slug));
+    yaml.push_str(&format!("manuscript: {}\n", yaml_value("")));
 
+    yaml.push_str(&format!("category: {}\n", yaml_value(&input.category)));
+
+    // excerpt
+    match &input.excerpt {
+        Some(v) if !v.is_empty() => yaml.push_str(&format!("excerpt: {}\n", yaml_value(v))),
+        _ => yaml.push_str("excerpt:\n"),
+    }
+
+    // Numeric-like fields: no quotes
+    yaml.push_str(&format!(
+        "prepTime: {}\n",
+        yaml_plain(&input.prep_time)
+    ));
+    yaml.push_str(&format!(
+        "cookTime: {}\n",
+        yaml_plain(&input.cook_time)
+    ));
+    yaml.push_str(&format!(
+        "servings: {}\n",
+        yaml_plain(&input.servings)
+    ));
+
+    // difficulty
+    match &input.difficulty {
+        Some(v) if !v.is_empty() => yaml.push_str(&format!("difficulty: {}\n", yaml_value(v))),
+        _ => yaml.push_str("difficulty:\n"),
+    }
+
+    // ingredients — indented list
+    yaml.push_str("ingredients:\n");
+    for ing in &input.ingredients {
+        if !ing.is_empty() {
+            yaml.push_str(&format!("  - {}\n", yaml_value(ing)));
+        }
+    }
+
+    // ingredients2Title
+    match &input.ingredients2_title {
+        Some(v) if !v.is_empty() => {
+            yaml.push_str(&format!("ingredients2Title: {}\n", yaml_value(v)))
+        }
+        _ => yaml.push_str("ingredients2Title:\n"),
+    }
+
+    // ingredients2 — indented list
+    match &input.ingredients2 {
+        Some(list) if !list.is_empty() => {
+            yaml.push_str("ingredients2:\n");
+            for ing in list {
+                if !ing.is_empty() {
+                    yaml.push_str(&format!("  - {}\n", yaml_value(ing)));
+                }
+            }
+        }
+        _ => yaml.push_str("ingredients2:\n"),
+    }
+
+    // notes
+    match &input.notes {
+        Some(v) if !v.is_empty() => yaml.push_str(&format!("notes: {}\n", yaml_value(v))),
+        _ => yaml.push_str("notes:\n"),
+    }
+
+    // legende
+    match &input.legende {
+        Some(v) if !v.is_empty() => yaml.push_str(&format!("legende: {}\n", yaml_value(v))),
+        _ => {} // omit if empty — optional field
+    }
+
+    // sourceImage
+    match &input.source_image {
+        Some(v) if !v.is_empty() => {
+            yaml.push_str(&format!("sourceImage: {}\n", yaml_value(v)))
+        }
+        _ => yaml.push_str("sourceImage:\n"),
+    }
+
+    // Steps
     let steps: String = input
         .steps
         .iter()
@@ -91,7 +155,53 @@ pub fn serialize_recipe(input: &RecipeInput, slug: &str) -> String {
         .collect::<Vec<_>>()
         .join("\n\n");
 
-    format!("---\n{}\n---\n\n{}\n", yaml, steps)
+    format!("---\n{}---\n\n{}\n", yaml, steps)
+}
+
+/// Format a string as a YAML value.
+/// Empty → "\"\"", needs quoting → double-quoted, otherwise bare.
+fn yaml_value(s: &str) -> String {
+    if s.is_empty() {
+        return "\"\"".to_string();
+    }
+    // Quote if it contains YAML-special characters
+    if s.contains(':')
+        || s.contains('#')
+        || s.contains('"')
+        || s.contains('\'')
+        || s.contains('\n')
+        || s.contains('{')
+        || s.contains('}')
+        || s.contains('[')
+        || s.contains(']')
+        || s.contains(',')
+        || s.starts_with('-')
+        || s.starts_with('*')
+        || s.starts_with('&')
+        || s.starts_with('!')
+        || s.starts_with('%')
+        || s.starts_with('@')
+        || s.starts_with('`')
+        || s.starts_with(' ')
+        || s.ends_with(' ')
+        // Looks like a boolean or null
+        || matches!(s.to_lowercase().as_str(), "true" | "false" | "yes" | "no" | "null")
+        // Looks like a number (don't want YAML to parse as int/float)
+        || s.chars().all(|c| c.is_ascii_digit() || c == '.' || c == '-')
+    {
+        // Double-quote and escape internal double quotes
+        format!("\"{}\"", s.replace('"', "\\\""))
+    } else {
+        s.to_string()
+    }
+}
+
+/// Format an optional string as a plain YAML value (no quotes for numbers).
+fn yaml_plain(s: &Option<String>) -> String {
+    match s {
+        Some(v) if !v.is_empty() => v.to_string(),
+        _ => String::new(),
+    }
 }
 
 /// List all .md files in a directory, parsed as recipes.
