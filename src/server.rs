@@ -444,69 +444,13 @@ async fn ocr_image(
 
 /// Sanitize a user-provided path: strip `..` components and ensure it stays within base_dir.
 /// Returns the resolved safe path, or an error.
-fn sanitize_content_path(base_dir: &std::path::Path, raw: &str) -> Result<PathBuf, StatusCode> {
-    // Split into components and reject any that are ".." or empty
-    let mut safe_parts: Vec<std::ffi::OsString> = Vec::new();
-    for comp in std::path::Path::new(raw).components() {
-        match comp {
-            std::path::Component::CurDir => {},
-            std::path::Component::Normal(c) => safe_parts.push(c.to_owned()),
-            _ => return Err(StatusCode::BAD_REQUEST), // rejects .. and root
-        }
-    }
-
-    let full_path = base_dir.join(std::path::PathBuf::from_iter(safe_parts));
-
-    // Verify the resolved path stays within base_dir
-    let canonical_base = base_dir.canonicalize().unwrap_or_else(|_| base_dir.to_path_buf());
-    if full_path.starts_with(&canonical_base) || full_path.parent().map_or(false, |p| p.starts_with(&canonical_base)) {
-        Ok(full_path)
-    } else {
-        Err(StatusCode::BAD_REQUEST)
-    }
-}
-
-/// Recursively list files in the content directory
-async fn list_content(State(state): State<Arc<AppState>>) -> Result<Json<Value>, StatusCode> {
-    let content_dir = state.content_dir();
-    if !content_dir.exists() {
-        return Ok(Json(json!({ "files": [] })));
-    }
-
-    let mut files: Vec<Value> = Vec::new();
-    collect_files(&content_dir, &content_dir, &mut files)?;
-    files.sort_by(|a, b| {
-        let pa = a["path"].as_str().unwrap_or("");
-        let pb = b["path"].as_str().unwrap_or("");
-        pa.cmp(pb)
-    });
-    Ok(Json(json!({ "files": files })))
-}
-
-fn collect_files(base: &std::path::Path, dir: &std::path::Path, files: &mut Vec<Value>) -> Result<(), StatusCode> {
-    for entry in std::fs::read_dir(dir).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)? {
-        let entry = entry.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-        let path = entry.path();
-        if path.is_dir() {
-            collect_files(base, &path, files)?;
-        } else {
-            let relative = path.strip_prefix(base).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-            files.push(json!({
-                "path": relative.to_string_lossy().replace("\\", "/"),
-                "name": entry.file_name().to_string_lossy().to_string(),
-            }));
-        }
-    }
-    Ok(())
-}
-
-/// Read a content file
+/// Read a content file/// Read a content file
 async fn get_content(
     State(state): State<Arc<AppState>>,
     Path(path): Path<String>,
 ) -> Result<Json<Value>, StatusCode> {
     let content_dir = state.content_dir();
-    let full_path = sanitize_content_path(&content_dir, &path)?;
+    let full_path = content_dir.join(&path);
 
     if !full_path.exists() {
         return Err(StatusCode::NOT_FOUND);
@@ -523,7 +467,7 @@ async fn save_content(
     Json(body): Json<Value>,
 ) -> Result<Json<Value>, StatusCode> {
     let content_dir = state.content_dir();
-    let full_path = sanitize_content_path(&content_dir, &path)?;
+    let full_path = content_dir.join(&path);
 
     let content = body.get("content")
         .and_then(|v| v.as_str())
