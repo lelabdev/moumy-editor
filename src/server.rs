@@ -455,7 +455,7 @@ async fn list_content(
             }
         }
     }
-    files.sort_by(|a, b| a["name"].as_str().cmp(b["name"].as_str().unwrap_or("")));
+    files.sort_by(|a, b| a["name"].as_str().unwrap_or("").cmp(b["name"].as_str().unwrap_or("")));
     Json(json!({ "files": files }))
 }
 
