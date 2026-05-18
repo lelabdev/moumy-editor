@@ -478,6 +478,19 @@ let allRecipes = [];
       }
     }
 
+    async function deleteOrphanImage(slug) {
+      if (!confirm('Supprimer cette image ?\n' + slug)) return;
+      try {
+        const res = await fetch(`/api/images/${slug}`, { method: 'DELETE' });
+        if (!res.ok) { alert('Erreur lors de la suppression'); return; }
+        orphanImages = orphanImages.filter(i => i.slug !== slug);
+        renderOrphanTree();
+        updateOrphanBadge();
+      } catch (e) {
+        alert('Erreur: ' + e.message);
+      }
+    }
+
     function renderOrphanTree() {
       const container = document.getElementById('orphan-tree');
       if (orphanImages.length === 0) {
@@ -494,9 +507,10 @@ let allRecipes = [];
         <div class="p-3 space-y-3">
           <p class="text-xs text-stone-400 px-1">Images sans recette — cliquer pour créer</p>
           ${orphanImages.map(img => `
-            <div class="orphan-card bg-white border border-stone-200" onclick="newRecipeFromImage('${esc(img.slug)}')">
-              <img src="/api/images/${esc(img.slug)}" alt="${esc(img.slug)}" class="w-full aspect-[3/4] object-cover" />
-              <div class="px-3 py-2 text-sm font-mono text-stone-600">${esc(img.slug)}</div>
+            <div class="orphan-card bg-white border border-stone-200 relative group">
+              <img src="/api/images/${esc(img.slug)}" alt="${esc(img.slug)}" class="w-full aspect-[3/4] object-cover cursor-pointer" onclick="newRecipeFromImage('${esc(img.slug)}')" />
+              <button onclick="event.stopPropagation(); deleteOrphanImage('${esc(img.slug)}')" class="absolute top-2 right-2 bg-red-500 hover:bg-red-700 text-white w-7 h-7 rounded-full text-sm opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center" title="Supprimer">✕</button>
+              <div class="px-3 py-2 text-sm font-mono text-stone-600 cursor-pointer" onclick="newRecipeFromImage('${esc(img.slug)}')">${esc(img.slug)}</div>
             </div>
           `).join('')}
         </div>

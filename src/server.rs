@@ -45,6 +45,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/recipes/{slug}", post(update_recipe))
         .route("/api/recipes/{slug}", delete(delete_recipe))
         .route("/api/images/{slug}", get(get_image))
+        .route("/api/images/{slug}", delete(delete_image))
         .route("/api/images-group/{slug}", get(list_images_group))
         .route("/api/orphan-images", get(list_orphan_images))
         .route("/api/site-url", get(get_site_url))
@@ -171,6 +172,30 @@ async fn get_image(
                     [(header::CONTENT_TYPE, mime)],
                     Body::from(bytes),
                 ));
+            }
+        }
+    }
+    Err(StatusCode::NOT_FOUND)
+}
+
+/// Delete an image by slug
+async fn delete_image(
+    State(state): State<Arc<AppState>>,
+    Path(slug): Path<String>,
+) -> Result<Json<Value>, StatusCode> {
+    let img_dir = state.img_dir();
+    let base_slug = slug.split('_').next().unwrap_or(&slug);
+    let candidates = if base_slug != slug {
+        vec![slug.as_str(), base_slug]
+    } else {
+        vec![slug.as_str()]
+    };
+    for candidate in &candidates {
+        for ext in &["jpg", "jpeg", "png", "webp"] {
+            let path = img_dir.join(format!("{}.{}", candidate, ext));
+            if path.exists() {
+                std::fs::remove_file(&path).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+                return Ok(Json(json!({ "deleted": candidate })));
             }
         }
     }
