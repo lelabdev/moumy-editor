@@ -492,7 +492,7 @@ fn collect_files(base: &std::path::Path, dir: &std::path::Path, files: &mut Vec<
         } else {
             let relative = path.strip_prefix(base).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
             files.push(json!({
-                "path": relative.to_string_lossy().to_string(),
+                "path": relative.to_string_lossy().replace("\\", "/"),
                 "name": entry.file_name().to_string_lossy().to_string(),
             }));
         }
