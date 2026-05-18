@@ -442,9 +442,7 @@ async fn ocr_image(
 
 // --- Content editor endpoints ---
 
-/// Sanitize a user-provided path: strip `..` components and ensure it stays within base_dir.
-/// Returns the resolved safe path, or an error.
-/// Read a content file/// Read a content file
+/// Read a content file
 async fn get_content(
     State(state): State<Arc<AppState>>,
     Path(path): Path<String>,
