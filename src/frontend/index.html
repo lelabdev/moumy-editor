@@ -299,11 +299,8 @@
           <!-- Ingredients -->
           <div class="mb-6">
             <label class="block text-sm font-medium text-stone-700 mb-1">Ingrédients</label>
-            <div id="ingredients-list" class="space-y-2 mb-2"></div>
             <textarea id="ingredients-raw" rows="8" placeholder="Un ingrédient par ligne&#10;200g de farine&#10;3 oeufs&#10;100g de sucre"
-              class="hidden w-full px-3 py-2 border border-stone-300 rounded-lg font-sans text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"></textarea>
-            <button type="button" onclick="addIngredient()" id="add-ingredient-btn"
-              class="text-amber-600 hover:text-amber-800 text-sm font-medium">+ Ajouter un ingrédient</button>
+              class="w-full px-3 py-2 border border-stone-300 rounded-lg font-sans text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"></textarea>
           </div>
 
           <!-- Ingredients 2 (hidden by default, toggle like categories) -->
@@ -316,10 +313,9 @@
                 <input type="text" id="form-ingredients2-title" placeholder="Titre (ex: Pour la pâte)"
                   class="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
               </div>
-              <div id="ingredients2-list" class="space-y-2 mb-2"></div>
-              <div class="flex items-center gap-3">
-                <button type="button" onclick="addIngredient2()"
-                  class="text-amber-600 hover:text-amber-800 text-sm font-medium">+ Ajouter</button>
+              <textarea id="ingredients2-raw" rows="5" placeholder="Un ingrédient par ligne"
+                class="w-full px-3 py-2 border border-stone-300 rounded-lg font-sans text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"></textarea>
+              <div class="mt-2">
                 <button type="button" onclick="hideIngredients2()"
                   class="text-xs text-stone-400 hover:text-stone-600">✕ Retirer</button>
               </div>
@@ -329,11 +325,8 @@
           <!-- Steps -->
           <div class="mb-6">
             <label class="block text-sm font-medium text-stone-700 mb-1">Étapes</label>
-            <div id="steps-list" class="space-y-2 mb-2"></div>
             <textarea id="steps-raw" rows="8" placeholder="Une étape par ligne&#10;1. Mélanger la farine et le sucre&#10;2. Ajouter les oeufs un par un"
-              class="hidden w-full px-3 py-2 border border-stone-300 rounded-lg font-sans text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"></textarea>
-            <button type="button" onclick="addStep()" id="add-step-btn"
-              class="text-amber-600 hover:text-amber-800 text-sm font-medium">+ Ajouter une étape</button>
+              class="w-full px-3 py-2 border border-stone-300 rounded-lg font-sans text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"></textarea>
           </div>
 
           <!-- Notes -->
@@ -624,18 +617,14 @@
       document.getElementById('form-slug').value = '';
       document.getElementById('form-slug-edit').value = '';
       document.getElementById('recipe-form').reset();
-      document.getElementById('ingredients-list').innerHTML = '';
       document.getElementById('ingredients-raw').value = '';
-      document.getElementById('ingredients2-list').innerHTML = '';
       document.getElementById('form-ingredients2-title').value = '';
       document.getElementById('ingredients2-section').classList.add('hidden');
       document.getElementById('add-i2-btn').classList.remove('hidden');
-      document.getElementById('steps-list').innerHTML = '';
       document.getElementById('steps-raw').value = '';
       document.getElementById('delete-btn').classList.add('hidden');
       hideAddCategory();
       // Use raw textarea mode for new recipes
-      setListMode('raw');
       // Reset manuscript
       document.getElementById('manuscript-img').classList.add('hidden');
       document.getElementById('manuscript-placeholder').classList.remove('hidden');
@@ -661,18 +650,10 @@
       document.getElementById('form-legende').value = recipe.legende || '';
       document.getElementById('form-sourceImage').value = recipe.sourceImage || '';
 
-      // Ingredients
-      const ingList = document.getElementById('ingredients-list');
-      ingList.innerHTML = '';
-      (recipe.ingredients || []).forEach(ing => addIngredient(ing));
-      addIngredient(); // Always one empty line
+      document.getElementById('ingredients-raw').value = (recipe.ingredients || []).join('\n');
 
-      // Ingredients 2
-      const ing2List = document.getElementById('ingredients2-list');
-      ing2List.innerHTML = '';
       document.getElementById('form-ingredients2-title').value = recipe.ingredients2Title || '';
-      (recipe.ingredients2 || []).forEach(ing => addIngredient2(ing));
-      if (recipe.ingredients2 && recipe.ingredients2.length > 0) addIngredient2();
+      document.getElementById('ingredients2-raw').value = (recipe.ingredients2 || []).join('\n');
 
       // Show/hide ingredients2 section based on data
       const hasI2 = recipe.ingredients2Title || (recipe.ingredients2 && recipe.ingredients2.length > 0);
@@ -683,15 +664,10 @@
       loadManuscriptImage(recipe.slug);
       loadImageGroup(recipe.slug);
 
-      // Steps
-      const stepList = document.getElementById('steps-list');
-      stepList.innerHTML = '';
-      (recipe.steps || []).forEach(step => addStep(step));
-      addStep(); // Always one empty line
+      document.getElementById('steps-raw').value = (recipe.steps || []).join('\n');
 
       document.getElementById('delete-btn').classList.remove('hidden');
       hideAddCategory();
-      setListMode('editor'); // existing recipes use editor mode
       showForm();
       renderTree(); // refresh active state
     }
@@ -712,90 +688,25 @@
     }
 
     // --- Dynamic lists ---
-    function addIngredient(value = '') {
-      const div = document.createElement('div');
-      div.className = 'editor-line';
-      div.innerHTML = `
-        <span class="editor-bullet">•</span>
-        <input type="text" value="${esc(value)}" placeholder="Ajouter…">
-        <span class="editor-delete" onclick="this.parentElement.remove()">✕</span>
-      `;
-      const input = div.querySelector('input');
-      input.addEventListener('keydown', e => {
-        if (e.key === 'Enter') { e.preventDefault(); addIngredient(); }
-      });
-      document.getElementById('ingredients-list').appendChild(div);
-      if (!value) input.focus();
-    }
 
-    function addStep(value = '') {
-      const div = document.createElement('div');
-      div.className = 'editor-line step-input';
-      const stepNum = document.querySelectorAll('.step-input').length + 1;
-      div.innerHTML = `
-        <span class="editor-number">${stepNum}.</span>
-        <input type="text" value="${esc(value)}" placeholder="Ajouter…">
-        <span class="editor-delete" onclick="this.parentElement.remove()">✕</span>
-      `;
-      const input = div.querySelector('input');
-      input.addEventListener('keydown', e => {
-        if (e.key === 'Enter') { e.preventDefault(); addStep(); }
-      });
-      document.getElementById('steps-list').appendChild(div);
-      if (!value) input.focus();
-    }
 
-    // --- List mode (editor vs raw textarea) ---
-    let listMode = 'editor'; // 'editor' = input lines, 'raw' = textarea
 
-    function setListMode(mode) {
-      listMode = mode;
-      const isRaw = mode === 'raw';
 
-      // Ingredients
-      document.getElementById('ingredients-list').classList.toggle('hidden', isRaw);
-      document.getElementById('ingredients-raw').classList.toggle('hidden', !isRaw);
-      document.getElementById('add-ingredient-btn').classList.toggle('hidden', isRaw);
 
-      // Steps
-      document.getElementById('steps-list').classList.toggle('hidden', isRaw);
-      document.getElementById('steps-raw').classList.toggle('hidden', !isRaw);
-      document.getElementById('add-step-btn').classList.toggle('hidden', isRaw);
-    }
 
     function collectIngredients() {
-      if (listMode === 'raw') {
-        return document.getElementById('ingredients-raw').value.split('\n').filter(v => v.trim());
-      }
-      return [...document.querySelectorAll('#ingredients-list input')].map(i => i.value).filter(v => v.trim());
+      return document.getElementById('ingredients-raw').value.split('\n').filter(v => v.trim());
     }
 
-    function addIngredient2(value = '') {
-      const div = document.createElement('div');
-      div.className = 'editor-line';
-      div.innerHTML = `
-        <span class="editor-bullet">•</span>
-        <input type="text" value="${esc(value)}" placeholder="Ajouter…">
-        <span class="editor-delete" onclick="this.parentElement.remove()">✕</span>
-      `;
-      const input = div.querySelector('input');
-      input.addEventListener('keydown', e => {
-        if (e.key === 'Enter') { e.preventDefault(); addIngredient2(); }
-      });
-      document.getElementById('ingredients2-list').appendChild(div);
-      if (!value) input.focus();
-    }
+
 
     function collectIngredients2() {
-      const items = [...document.querySelectorAll('#ingredients2-list input')].map(i => i.value).filter(v => v.trim());
+      const items = document.getElementById('ingredients2-raw').value.split('\n').filter(v => v.trim());
       return items.length > 0 ? items : null;
     }
 
     function collectSteps() {
-      if (listMode === 'raw') {
-        return document.getElementById('steps-raw').value.split('\n').filter(v => v.trim());
-      }
-      return [...document.querySelectorAll('#steps-list input')].map(i => i.value).filter(v => v.trim());
+      return document.getElementById('steps-raw').value.split('\n').filter(v => v.trim());
     }
 
     // --- Helpers ---
@@ -825,7 +736,6 @@
     function hideIngredients2() {
       document.getElementById('ingredients2-section').classList.add('hidden');
       document.getElementById('add-i2-btn').classList.remove('hidden');
-      document.getElementById('ingredients2-list').innerHTML = '';
       document.getElementById('form-ingredients2-title').value = '';
     }
 
