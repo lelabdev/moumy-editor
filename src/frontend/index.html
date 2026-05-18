@@ -72,7 +72,7 @@
     }
 
     /* Save button dirty state */
-    .save-btn.is-clean {
+    .save-btn.{
       opacity: 0.45;
       cursor: default;
       pointer-events: none;
@@ -346,7 +346,7 @@
           <!-- Actions -->
           <div class="flex items-center gap-4 pt-4 border-t border-stone-200">
             <button type="submit" id="save-btn"
-              class="save-btn bg-amber-600 hover:bg-amber-700 text-white px-6 py-2 rounded-lg font-medium is-clean">
+              class="save-btn bg-amber-600 hover:bg-amber-700 text-white px-6 py-2 rounded-lg font-medium">
               💾 Sauvegarder
             </button>
             <button type="button" onclick="cancelEdit()"
@@ -453,7 +453,6 @@
       document.getElementById('form-slug').value = activeSlug;
       document.getElementById('form-slug-edit').value = activeSlug;
       loadManuscriptImage(activeSlug);
-      storeSnapshot(); // reset dirty state
       checkGitStatus(); // refresh git indicators
     }
 
@@ -617,13 +616,11 @@
       updateCategoryDropdown();
       document.getElementById('form-category').value = key;
       hideAddCategory();
-      checkDirty();
     }
 
     // --- Form ---
     function showNewRecipe() {
       activeSlug = null;
-      originalSnapshot = null; // new recipe = no snapshot = always dirty
       document.getElementById('form-slug').value = '';
       document.getElementById('form-slug-edit').value = '';
       document.getElementById('recipe-form').reset();
@@ -697,7 +694,6 @@
       setListMode('editor'); // existing recipes use editor mode
       showForm();
       renderTree(); // refresh active state
-      storeSnapshot(); // snapshot for dirty tracking
     }
 
     function showForm() {
@@ -997,7 +993,6 @@
       loadManuscriptImage(slug);
       // Re-render thumbnails to update selection
       loadImageGroup(slug);
-      checkDirty();
     }
 
     function renderOcrVariants() {
@@ -1032,7 +1027,6 @@
       ocrSelectedSlug = slug;
       document.getElementById('form-sourceImage').value = slug;
       renderOcrVariants();
-      checkDirty();
     }
 
     // --- Tabs ---
@@ -1100,52 +1094,7 @@
       btn.disabled = false;
     }
 
-    // --- Dirty state tracking ---
-    let originalSnapshot = null;
 
-    function collectCurrentData() {
-      return JSON.stringify({
-        slug: document.getElementById('form-slug-edit').value,
-        title: document.getElementById('form-title').value,
-        category: document.getElementById('form-category').value,
-        excerpt: document.getElementById('form-excerpt').value,
-        prepTime: intVal('form-prepTime'),
-        cookTime: intVal('form-cookTime'),
-        servings: strVal('form-servings'),
-        difficulty: document.getElementById('form-difficulty').value,
-        ingredients: collectIngredients().filter(i => i.trim() !== ''),
-        ingredients2Title: document.getElementById('form-ingredients2-title').value,
-        ingredients2: collectIngredients2().filter(i => i.trim() !== ''),
-        notes: document.getElementById('form-notes').value,
-        legende: document.getElementById('form-legende').value,
-        sourceImage: document.getElementById('form-sourceImage').value,
-        steps: collectSteps().filter(s => s.trim() !== ''),
-      });
-    }
-
-    function checkDirty() {
-      const btn = document.getElementById('save-btn');
-      if (!btn) return;
-      if (!originalSnapshot) {
-        // New recipe — always "dirty" (savable)
-        btn.classList.remove('is-clean');
-        return;
-      }
-      const current = collectCurrentData();
-      if (current === originalSnapshot) {
-        btn.classList.add('is-clean');
-      } else {
-        btn.classList.remove('is-clean');
-      }
-    }
-
-    function storeSnapshot() {
-      originalSnapshot = collectCurrentData();
-      checkDirty();
-    }
-
-    // Global input listener for dirty checking
-    document.getElementById('recipe-form').addEventListener('input', checkDirty);
 
     // --- Init ---
     fetchRecipes();
