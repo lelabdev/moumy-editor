@@ -442,6 +442,23 @@ async fn ocr_image(
 
 // --- Content editor endpoints ---
 
+/// List all content files
+async fn list_content(
+    State(state): State<Arc<AppState>>,
+) -> Json<Value> {
+    let content_dir = state.content_dir();
+    let mut files: Vec<Value> = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(&content_dir) {
+        for entry in entries.flatten() {
+            if let Some(name) = entry.file_name().to_str() {
+                files.push(json!({ "name": name, "path": name }));
+            }
+        }
+    }
+    files.sort_by(|a, b| a["name"].as_str().cmp(b["name"].as_str().unwrap_or("")));
+    Json(json!({ "files": files }))
+}
+
 /// Read a content file
 async fn get_content(
     State(state): State<Arc<AppState>>,
