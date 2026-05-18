@@ -1065,7 +1065,7 @@
 
     async function loadContentFile(path) {
       try {
-        const res = await fetch(`/api/content/${encodeURIComponent(path)}`);
+        const res = await fetch(`/api/content/${path}`);
         if (!res.ok) { alert('Fichier introuvable'); return; }
         const data = await res.json();
         activeContentPath = path;
@@ -1090,7 +1090,7 @@
       if (!textarea) return;
 
       try {
-        const res = await fetch(`/api/content/${encodeURIComponent(activeContentPath)}`, {
+        const res = await fetch(`/api/content/${activeContentPath}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ content: textarea.value }),
