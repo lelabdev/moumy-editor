@@ -30,10 +30,8 @@ impl AppState {
     /// project_root = recipes_dir.parent().parent().parent()
     pub fn content_dir(&self) -> PathBuf {
         self.recipes_dir.parent() // src/data/
-            .and_then(|p| p.parent()) // src/
-            .and_then(|p| p.parent()) // project root
-            .map(|p| p.join("src/data/content"))
-            .unwrap_or_else(|| self.recipes_dir.join("../../content"))
+            .map(|p| p.join("content"))
+            .unwrap_or_else(|| self.recipes_dir.join("../content"))
     }
 }
 
