@@ -448,8 +448,12 @@
       }
 
       await fetchRecipes();
-      cancelEdit();
-      originalSnapshot = null; // reset dirty state after save
+      // Stay on the recipe — update slug if renamed, reset dirty state
+      activeSlug = customSlug || originalSlug;
+      document.getElementById('form-slug').value = activeSlug;
+      document.getElementById('form-slug-edit').value = activeSlug;
+      loadManuscriptImage(activeSlug);
+      storeSnapshot(); // reset dirty state
       checkGitStatus(); // refresh git indicators
     }
 
