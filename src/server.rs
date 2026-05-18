@@ -471,11 +471,6 @@ async fn save_content(
         .and_then(|v| v.as_str())
         .ok_or(StatusCode::BAD_REQUEST)?;
 
-    // Ensure parent directory exists
-    if let Some(parent) = full_path.parent() {
-        std::fs::create_dir_all(parent).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    }
-
     std::fs::write(&full_path, content).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!({ "ok": true })))
 }
