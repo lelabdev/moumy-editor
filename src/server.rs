@@ -25,9 +25,9 @@ impl AppState {
             .unwrap_or_else(|| self.recipes_dir.join("../img"))
     }
 
-    /// Content directory: src/data/content/ relative to project root
+    /// Content directory: src/data/content/
     /// recipes_dir = <project>/src/data/recettes/
-    /// project_root = recipes_dir.parent().parent().parent()
+    /// content_dir = recipes_dir.parent().join("content")
     pub fn content_dir(&self) -> PathBuf {
         self.recipes_dir.parent() // src/data/
             .map(|p| p.join("content"))
