@@ -24,6 +24,17 @@ impl AppState {
             .map(|p| p.join("img"))
             .unwrap_or_else(|| self.recipes_dir.join("../img"))
     }
+
+    /// Content directory: src/data/content/ relative to project root
+    /// recipes_dir = <project>/src/data/recettes/
+    /// project_root = recipes_dir.parent().parent().parent()
+    pub fn content_dir(&self) -> PathBuf {
+        self.recipes_dir.parent() // src/data/
+            .and_then(|p| p.parent()) // src/
+            .and_then(|p| p.parent()) // project root
+            .map(|p| p.join("src/data/content"))
+            .unwrap_or_else(|| self.recipes_dir.join("../../content"))
+    }
 }
 
 pub fn router(state: Arc<AppState>) -> Router {
@@ -44,6 +55,9 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/ocr-status", get(ocr_status))
         .route("/api/git-status", get(git_status))
         .route("/api/git-push", post(git_push))
+        .route("/api/content", get(list_content))
+        .route("/api/content/{path}", get(get_content))
+        .route("/api/content/{path}", post(save_content))
         .with_state(state)
 }
 
@@ -426,6 +440,104 @@ async fn ocr_image(
         .join("\n\n");
 
     Ok(Json(json!({ "text": text })))
+}
+
+// --- Content editor endpoints ---
+
+/// Sanitize a user-provided path: strip `..` components and ensure it stays within base_dir.
+/// Returns the resolved safe path, or an error.
+fn sanitize_content_path(base_dir: &std::path::Path, raw: &str) -> Result<PathBuf, StatusCode> {
+    // Split into components and reject any that are ".." or empty
+    let mut safe_parts: Vec<std::ffi::OsString> = Vec::new();
+    for comp in std::path::Path::new(raw).components() {
+        match comp {
+            std::path::Component::CurDir => {},
+            std::path::Component::Normal(c) => safe_parts.push(c.to_owned()),
+            _ => return Err(StatusCode::BAD_REQUEST), // rejects .. and root
+        }
+    }
+
+    let full_path = base_dir.join(std::path::PathBuf::from_iter(safe_parts));
+
+    // Verify the resolved path stays within base_dir
+    let canonical_base = base_dir.canonicalize().unwrap_or_else(|_| base_dir.to_path_buf());
+    if full_path.starts_with(&canonical_base) || full_path.parent().map_or(false, |p| p.starts_with(&canonical_base)) {
+        Ok(full_path)
+    } else {
+        Err(StatusCode::BAD_REQUEST)
+    }
+}
+
+/// Recursively list files in the content directory
+async fn list_content(State(state): State<Arc<AppState>>) -> Result<Json<Value>, StatusCode> {
+    let content_dir = state.content_dir();
+    if !content_dir.exists() {
+        return Ok(Json(json!({ "files": [] })));
+    }
+
+    let mut files: Vec<Value> = Vec::new();
+    collect_files(&content_dir, &content_dir, &mut files)?;
+    files.sort_by(|a, b| {
+        let pa = a["path"].as_str().unwrap_or("");
+        let pb = b["path"].as_str().unwrap_or("");
+        pa.cmp(pb)
+    });
+    Ok(Json(json!({ "files": files })))
+}
+
+fn collect_files(base: &std::path::Path, dir: &std::path::Path, files: &mut Vec<Value>) -> Result<(), StatusCode> {
+    for entry in std::fs::read_dir(dir).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)? {
+        let entry = entry.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        let path = entry.path();
+        if path.is_dir() {
+            collect_files(base, &path, files)?;
+        } else {
+            let relative = path.strip_prefix(base).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            files.push(json!({
+                "path": relative.to_string_lossy().to_string(),
+                "name": entry.file_name().to_string_lossy().to_string(),
+            }));
+        }
+    }
+    Ok(())
+}
+
+/// Read a content file
+async fn get_content(
+    State(state): State<Arc<AppState>>,
+    Path(path): Path<String>,
+) -> Result<Json<Value>, StatusCode> {
+    let content_dir = state.content_dir();
+    let full_path = sanitize_content_path(&content_dir, &path)?;
+
+    if !full_path.exists() {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    let content = std::fs::read_to_string(&full_path).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(json!({ "path": path, "content": content })))
+}
+
+/// Write a content file
+async fn save_content(
+    State(state): State<Arc<AppState>>,
+    Path(path): Path<String>,
+    Json(body): Json<Value>,
+) -> Result<Json<Value>, StatusCode> {
+    let content_dir = state.content_dir();
+    let full_path = sanitize_content_path(&content_dir, &path)?;
+
+    let content = body.get("content")
+        .and_then(|v| v.as_str())
+        .ok_or(StatusCode::BAD_REQUEST)?;
+
+    // Ensure parent directory exists
+    if let Some(parent) = full_path.parent() {
+        std::fs::create_dir_all(parent).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    }
+
+    std::fs::write(&full_path, content).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(json!({ "ok": true })))
 }
 
 fn recipe_to_json(recipe: &Recipe) -> Value {

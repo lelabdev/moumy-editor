@@ -155,11 +155,13 @@
       </div>
       <!-- Tabs -->
       <div class="flex border-b border-stone-200">
-        <div class="sidebar-tab active" id="tab-recipes" onclick="switchTab('recipes')">Recettes</div>
-        <div class="sidebar-tab" id="tab-orphans" onclick="switchTab('orphans')">Images <span id="orphan-count" class="sidebar-tab-badge hidden">0</span></div>
+        <div class="sidebar-tab active" id="tab-recipes" onclick="switchTab('recipes')">🍽️ Recettes</div>
+        <div class="sidebar-tab" id="tab-orphans" onclick="switchTab('orphans')">📷 Images <span id="orphan-count" class="sidebar-tab-badge hidden">0</span></div>
+        <div class="sidebar-tab" id="tab-content" onclick="switchTab('content')">📝 Textes</div>
       </div>
       <div id="recipe-tree" class="flex-1 overflow-y-auto"></div>
       <div id="orphan-tree" class="flex-1 overflow-y-auto hidden"></div>
+      <div id="content-panel" class="flex-1 overflow-y-auto hidden"></div>
     </aside>
 
     <!-- Main content: form -->
@@ -353,6 +355,24 @@
             </div><!-- /form fields -->
           </div><!-- /flex layout -->
         </form>
+      </div>
+      <!-- Content editor in main area -->
+      <div id="content-editor" class="hidden p-6">
+        <div class="max-w-3xl mx-auto">
+          <div class="flex items-center justify-between mb-4">
+            <h2 id="content-editor-title" class="text-lg font-semibold text-stone-800"></h2>
+            <span id="content-saved" class="text-sm text-green-600 hidden">Saved ✓</span>
+          </div>
+          <textarea id="content-textarea"
+            class="w-full h-[calc(100vh-200px)] px-4 py-3 font-mono text-sm text-stone-800 bg-white border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 resize-y"
+            placeholder="Chargement..."></textarea>
+          <div class="mt-4">
+            <button onclick="saveContentFile()"
+              class="bg-amber-600 hover:bg-amber-700 text-white px-6 py-2 rounded-lg font-medium text-sm transition-colors">
+              💾 Sauvegarder
+            </button>
+          </div>
+        </div>
       </div>
     </main>
   </div>
@@ -941,17 +961,150 @@
 
     // --- Tabs ---
     let currentTab = 'recipes';
+    let contentFiles = [];
+    let activeContentPath = null;
 
     function switchTab(tab) {
       currentTab = tab;
       document.getElementById('tab-recipes').classList.toggle('active', tab === 'recipes');
       document.getElementById('tab-orphans').classList.toggle('active', tab === 'orphans');
+      document.getElementById('tab-content').classList.toggle('active', tab === 'content');
       document.getElementById('recipe-tree').classList.toggle('hidden', tab !== 'recipes');
       document.getElementById('orphan-tree').classList.toggle('hidden', tab !== 'orphans');
+      document.getElementById('content-panel').classList.toggle('hidden', tab !== 'content');
+
+      if (tab === 'content') {
+        document.getElementById('form-container').classList.add('hidden');
+        if (activeContentPath) {
+          document.getElementById('content-editor').classList.remove('hidden');
+          document.getElementById('empty-state').classList.add('hidden');
+        } else {
+          showContentEmpty();
+        }
+        fetchContentFiles();
+      } else {
+        // Hide content editor when switching away
+        document.getElementById('content-editor').classList.add('hidden');
+        if (activeSlug) {
+          document.getElementById('form-container').classList.remove('hidden');
+          document.getElementById('empty-state').classList.add('hidden');
+        } else {
+          document.getElementById('empty-state').classList.remove('hidden');
+          // Restore default empty state text
+          const p = document.getElementById('empty-state').querySelector('p');
+          if (p) p.textContent = 'Sélectionnez ou créez une recette';
+        }
+      }
 
       if (tab === 'orphans' && orphanImages.length === 0) {
-        // Already fetched, render
         renderOrphanTree();
+      }
+    }
+
+    // --- Content editor ---
+    async function fetchContentFiles() {
+      try {
+        const res = await fetch('/api/content');
+        const data = await res.json();
+        contentFiles = data.files || [];
+      } catch (e) {
+        contentFiles = [];
+      }
+      renderContentPanel();
+    }
+
+    function renderContentPanel() {
+      const container = document.getElementById('content-panel');
+
+      if (contentFiles.length === 0) {
+        container.innerHTML = `
+          <div class="flex flex-col items-center justify-center h-full text-stone-400 p-4">
+            <span class="text-2xl mb-2">📝</span>
+            <p class="text-sm text-center">Aucun fichier texte trouvé</p>
+            <p class="text-xs text-stone-300 mt-1">src/data/content/ est vide ou introuvable</p>
+          </div>
+        `;
+        return;
+      }
+
+      const fileItems = contentFiles.map(f => {
+        const isActive = f.path === activeContentPath;
+        return `
+          <button onclick="loadContentFile('${esc(f.path)}')"
+            class="w-full text-left px-4 py-2 border-b border-stone-50 transition-colors ${isActive ? 'bg-amber-100 text-amber-900' : 'hover:bg-stone-50'}">
+            <div class="flex items-center gap-2">
+              <span class="text-xs">${f.path.endsWith('.md') ? '📄' : f.path.endsWith('.json') ? '📋' : '📄'}</span>
+              <div class="min-w-0">
+                <div class="text-sm ${isActive ? 'font-medium' : 'text-stone-700'} truncate">${esc(f.name)}</div>
+                <div class="text-xs text-stone-400 truncate">${esc(f.path.split('/').slice(0, -1).join('/') || '/')}</div>
+              </div>
+            </div>
+          </button>
+        `;
+      }).join('');
+
+      container.innerHTML = `
+        <div class="flex flex-col h-full">
+          <div class="text-xs font-medium text-stone-500 uppercase tracking-wider px-4 py-2 border-b border-stone-100">
+            Fichiers (${contentFiles.length})
+          </div>
+          <div class="flex-1 overflow-y-auto">
+            ${fileItems}
+          </div>
+        </div>
+      `;
+    }
+
+    function showContentEmpty() {
+      document.getElementById('content-editor').classList.add('hidden');
+      document.getElementById('empty-state').classList.remove('hidden');
+      document.getElementById('empty-state').querySelector('p').textContent = 'Sélectionnez un fichier texte';
+    }
+
+    let contentFileContent = '';
+
+    async function loadContentFile(path) {
+      try {
+        const res = await fetch(`/api/content/${encodeURIComponent(path)}`);
+        if (!res.ok) { alert('Fichier introuvable'); return; }
+        const data = await res.json();
+        activeContentPath = path;
+        contentFileContent = data.content || '';
+        renderContentPanel();
+
+        // Show editor in main
+        document.getElementById('empty-state').classList.add('hidden');
+        document.getElementById('form-container').classList.add('hidden');
+        const editor = document.getElementById('content-editor');
+        editor.classList.remove('hidden');
+        document.getElementById('content-editor-title').textContent = path;
+        document.getElementById('content-textarea').value = contentFileContent;
+      } catch (e) {
+        alert('Erreur: ' + e.message);
+      }
+    }
+
+    async function saveContentFile() {
+      if (!activeContentPath) return;
+      const textarea = document.getElementById('content-textarea');
+      if (!textarea) return;
+
+      try {
+        const res = await fetch(`/api/content/${encodeURIComponent(activeContentPath)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: textarea.value }),
+        });
+        if (!res.ok) { alert('Erreur de sauvegarde'); return; }
+        contentFileContent = textarea.value;
+        const saved = document.getElementById('content-saved');
+        if (saved) {
+          saved.classList.remove('hidden');
+          setTimeout(() => saved.classList.add('hidden'), 2000);
+        }
+        checkGitStatus();
+      } catch (e) {
+        alert('Erreur: ' + e.message);
       }
     }
 
